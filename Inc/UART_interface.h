@@ -34,6 +34,7 @@
 #define OVER8_115200    0x0113
 #define OVER8_460800    0x0043
 #define OVER8_921600    0x0021
+#define OVER8_2000000   0x0010
 
 typedef enum {
 	STOP_1, /* One Stop Bit */
@@ -58,7 +59,6 @@ typedef enum {
 typedef enum {
 	EIGHT_BITS, NINE_BITS
 } DATA_LENGHT;
-
 
 /* UART Configuration Structure */
 typedef struct {
