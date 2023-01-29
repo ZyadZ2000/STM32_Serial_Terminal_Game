@@ -12,7 +12,6 @@
 #include "UART_interface.h"
 #include <assert.h>
 
-
 /* *
  * ISRs names are in the startup code
  * */
@@ -85,6 +84,9 @@ void MCAL_UART_init(UART_ConfigType *config_ptr) {
 			case 921600:
 				USART1->BRR = (USART1->BRR & (0xFFFF0000)) | OVER8_921600;
 				break;
+			case 2000000:
+				USART1->BRR = (USART1->BRR & (0xFFFF0000)) | OVER8_2000000;
+				break;
 			}
 		}
 
@@ -154,6 +156,9 @@ void MCAL_UART_init(UART_ConfigType *config_ptr) {
 				break;
 			case 921600:
 				USART2->BRR = (USART2->BRR & (0xFFFF0000)) | OVER8_921600;
+				break;
+			case 2000000:
+				USART2->BRR = (USART2->BRR & (0xFFFF0000)) | OVER8_2000000;
 				break;
 			}
 		}
@@ -225,6 +230,9 @@ void MCAL_UART_init(UART_ConfigType *config_ptr) {
 			case 921600:
 				USART3->BRR = (USART3->BRR & (0xFFFF0000)) | OVER8_921600;
 				break;
+			case 2000000:
+				USART3->BRR = (USART3->BRR & (0xFFFF0000)) | OVER8_2000000;
+				break;
 			}
 		}
 
@@ -294,6 +302,9 @@ void MCAL_UART_init(UART_ConfigType *config_ptr) {
 				break;
 			case 921600:
 				UART4->BRR = (UART4->BRR & (0xFFFF0000)) | OVER8_921600;
+				break;
+			case 2000000:
+				UART4->BRR = (UART4->BRR & (0xFFFF0000)) | OVER8_2000000;
 				break;
 			}
 		}
@@ -365,6 +376,9 @@ void MCAL_UART_init(UART_ConfigType *config_ptr) {
 			case 921600:
 				UART5->BRR = (UART5->BRR & (0xFFFF0000)) | OVER8_921600;
 				break;
+			case 2000000:
+				UART5->BRR = (UART5->BRR & (0xFFFF0000)) | OVER8_2000000;
+				break;
 			}
 		}
 
@@ -434,6 +448,9 @@ void MCAL_UART_init(UART_ConfigType *config_ptr) {
 				break;
 			case 921600:
 				USART6->BRR = (USART6->BRR & (0xFFFF0000)) | OVER8_921600;
+				break;
+			case 2000000:
+				USART6->BRR = (USART6->BRR & (0xFFFF0000)) | OVER8_2000000;
 				break;
 			}
 		}
