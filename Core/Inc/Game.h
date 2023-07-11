@@ -6,12 +6,11 @@
 #include "signals.h"
 #include "events.h"
 
-#define LVL1_SPD configTICK_RATE_HZ
-#define LVL2_SPD configTICK_RATE_HZ - 150U
-#define LVL3_SPD configTICK_RATE_HZ - 300U
-#define LVL4_SPD configTICK_RATE_HZ - 450U
-#define LVL5_SPD configTICK_RATE_HZ - 600U
-#define LVL6_SPD configTICK_RATE_HZ - 750U
+#define LVL1_SPEED configTICK_RATE_HZ
+#define LVL2_SPEED (configTICK_RATE_HZ - 200U)
+#define LVL3_SPEED (configTICK_RATE_HZ - 300U)
+#define LVL4_SPEED (configTICK_RATE_HZ - 500U)
+#define LVL5_SPEED (configTICK_RATE_HZ - 700U)
 
 typedef struct {
 	uint8_t row;
@@ -28,27 +27,23 @@ typedef struct {
 	Active super;
 	uint8_t curr_lvl; // current level
 	uint8_t max_lvl; // max level
-	uint8_t curr_score; // current score
-	uint8_t highest_score; // highest score
-	uint16_t elapsed_time; // elapsed time sice the start of the game
+	uint16_t curr_score; // current score
+	uint16_t highest_score; // highest score
+	uint16_t elapsed_time; // elapsed time since the start of the game
 	uint16_t game_speed;
 	Snake snake;
-	int8_t curr_dir; // current direction
+	char curr_dir; // current direction
 	uint8_t d_pwr_factor; // factor for the double score powerup
 	bool is_s_pwr; // boolean for the slow down powerup
 	TimeEvent update_time_te; // Time event to update the elapsed time
-	TimeEvent update_frame_te; // Time event to update the frame
-	TimeEvent update_level_te; // Time event to update the frame
+	TimeEvent update_dir_te; // Time event to update the direction
+	TimeEvent update_level_te; // Time event to update the level
 	TimeEvent gen_apple_te;  // Time event to generate an apple symbol
 	TimeEvent gen_enemy_te; // Time event to generate an enemy symbol
-	TimeEvent gen_pwr_te; // Time event to generate an powerup symbol
-	TimeEvent clr_pwr_te; // Time event to clear all powerup symbols
+	TimeEvent gen_pwr_te; // Time event to generate a powerup symbol
+	TimeEvent clr_smbl_te; // Time event to clear all symbols
 	TimeEvent rm_d_pwr; //remove the effect of the double score powerup
-	TimeEvent rm_s_pwr; //remove the effect of the slow down powerup
-//	uint8_t num_normal_smbl; // number of symbols (apples or enemies)
-//	uint8_t num_pwr_smbl; // number of powerup symbols
-//	uint8_t max_pwr_smbl; // max number of powerup symbols
-//	uint8_t max_total_smbl; // max number of all symbols
+	TimeEvent rm_s_pwr; //remove the effect of the slow enemies powerup
 } Game;
 
 void Game_ctor(Game *me);
