@@ -2,12 +2,26 @@
 
 extern Active *AO_ScreenFrame;
 
+static const char game_frame = ""; //The entire game frame.
+
 static State Game_initial(Game *const me, UserInputEvent const *const e);
 static State Game_welcome(Game *const me, UserInputEvent const *const e);
 static State Game_updateLevel(Game *const me, UserInputEvent const *const e);
 static State Game_playing(Game *const me, UserInputEvent const *const e);
 static State Game_updateFrame(Game *const me, UserInputEvent const *const e);
 static State Game_gameover(Game *const me, UserInputEvent const *const e);
+static uint32_t random(void);
+
+
+//Random generation using the XOR shift.
+uint32_t random(void) {
+	static u32 x = 10, y = 630, z = 100, w = 263;
+	u32 t = x ^ (x << 11);
+	x = y;
+	y = z;
+	z = w;
+	return w = w ^ (w >> 19) ^ t ^ (t >> 8);
+}
 
 void Game_ctor(Game *me) {
 	Active_ctor(&me->super, (StateHandler) &Game_initial);
@@ -16,7 +30,7 @@ void Game_ctor(Game *me) {
 	TimeEvent_ctor(&me->gen_apple_te, APPLE_TIMEOUT_SIG, &me->super);
 	TimeEvent_ctor(&me->gen_enemy_te, APPLE_TIMEOUT_SIG, &me->super);
 	TimeEvent_ctor(&me->gen_pwr_te, APPLE_TIMEOUT_SIG, &me->super);
-
+	TimeEvent_ctor(&me->clr_pwr_te, APPLE_TIMEOUT_SIG, &me->super);
 }
 
 static State Game_initial(Game *const me, UserInputEvent const *const e) {
@@ -29,7 +43,7 @@ static State Game_welcome(Game *const me, UserInputEvent const *const e) {
 			"Welcome to Snake game\r\ns:to start game\r\ne:to end game\r\n5 to move the snake upwards,\r\n2 for downwards,\r\n1 for left,\r\n3 for right\r\n";
 	switch (((Event*) e)->sig) {
 	case ENTRY_SIG:
-		//activate the ScreenFrame AO, send it an event with a pointer to the char * welcomeScreen
+		//send ScreenFrame AO an event with a pointer to the char * welcomeScreen
 		status = HANDLED_STATUS;
 		break;
 	case USER_IN_SIG:
@@ -48,6 +62,7 @@ static State Game_welcome(Game *const me, UserInputEvent const *const e) {
 			me->curr_dir = 0;
 			me->d_pwr_factor = 1;
 			me->s_pwr_factor = 1;
+			me->pwr_time_ctr = 0;
 			me->num_normal_smbl = 0;
 			me->num_pwr_smbl = 0;
 			me->max_pwr_smbl = 20;
@@ -62,4 +77,32 @@ static State Game_welcome(Game *const me, UserInputEvent const *const e) {
 	}
 
 	return status;
+}
+
+static State Game_updateLevel(Game *const me, UserInputEvent const *const e) {
+	State status;
+	switch (((Event*) e)->sig) {
+	case ENTRY_SIG:
+		TimeEvent_disarm(&me->update_time_te);
+		TimeEvent_disarm(&me->update_frame_te);
+		TimeEvent_disarm(&me->gen_apple_te);
+		TimeEvent_disarm(&me->gen_enemy_te);
+		TimeEvent_disarm(&me->gen_pwr_te);
+		TimeEvent_disarm(&me->clr_pwr_te);
+		if(me->curr_lvl == 6) {
+			status = TRAN(&Game_gameover);
+		} else {
+			TimeEvent_arm(&me->update_time_te, configTICK_RATE_HZ / 1U, configTICK_RATE_HZ / 1U);
+			TimeEvent_arm(&me->update_frame_te, configTICK_RATE_HZ / 1U, configTICK_RATE_HZ / 1U);
+			TimeEvent_arm(&me->gen_apple_te, configTICK_RATE_HZ / 1U, configTICK_RATE_HZ / 1U);
+			TimeEvent_arm(&me->gen_enemy_te, configTICK_RATE_HZ / 1U, configTICK_RATE_HZ / 1U);
+			TimeEvent_arm(&me->gen_pwr_te, configTICK_RATE_HZ / 1U, configTICK_RATE_HZ / 1U);
+			TimeEvent_arm(&me->clr_pwr_te, configTICK_RATE_HZ / 1U, configTICK_RATE_HZ / 1U);
+		}
+		status = HANDLED_STATUS;
+		break;
+	default:
+		status = IGNORED_STATUS;
+		break;
+	}
 }

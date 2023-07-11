@@ -28,14 +28,16 @@ typedef struct {
 	uint16_t elapsed_time; // elapsed time sice the start of the game
 	uint16_t game_speed;
 	Snake snake;
-	uint8_t curr_dir; // current direction
+	int8_t curr_dir; // current direction
 	uint8_t d_pwr_factor; // factor for the double score powerup
 	uint8_t s_pwr_factor; // factor for the slow down powerup
 	TimeEvent gen_apple_te; // Time event to generate an apple symbol
 	TimeEvent gen_enemy_te; // Time event to generate an enemy symbol
 	TimeEvent gen_pwr_te; // Time event to generate an powerup symbol
+	TimeEvent clr_pwr_te; // Time event to generate an powerup symbol
 	TimeEvent update_time_te; // Time event to update the elapsed time
 	TimeEvent update_frame_te; // Time event to update the frame
+	uint8_t pwr_time_ctr; //counter for the current powerup time.
 	uint8_t num_normal_smbl; // number of symbols (apples or enemies)
 	uint8_t num_pwr_smbl; // number of powerup symbols
 	uint8_t max_pwr_smbl; // max number of powerup symbols
