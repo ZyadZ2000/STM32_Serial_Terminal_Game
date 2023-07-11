@@ -2,6 +2,7 @@
 #define GAME_H
 
 #include "freertos_ao.h"
+#include "signals.h"
 
 typedef struct {
 	Event super;
@@ -16,7 +17,7 @@ typedef struct {
 typedef struct {
 	Position head;
 	Position tail;
-}Snake;
+} Snake;
 
 typedef struct {
 	Active super;
@@ -34,12 +35,13 @@ typedef struct {
 	TimeEvent gen_enemy_te; // Time event to generate an enemy symbol
 	TimeEvent gen_pwr_te; // Time event to generate an powerup symbol
 	TimeEvent update_time_te; // Time event to update the elapsed time
+	TimeEvent update_frame_te; // Time event to update the frame
 	uint8_t num_normal_smbl; // number of symbols (apples or enemies)
 	uint8_t num_pwr_smbl; // number of powerup symbols
 	uint8_t max_pwr_smbl; // max number of powerup symbols
 	uint8_t max_total_smbl; // max number of all symbols
 } Game;
 
-void Game_ctor(Game * me);
-W
+void Game_ctor(Game *me);
+
 #endif
