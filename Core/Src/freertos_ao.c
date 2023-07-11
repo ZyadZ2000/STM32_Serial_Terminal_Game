@@ -1,3 +1,4 @@
+#include <assert.h>
 #include "freertos_ao.h"
 
 /*---------------------------------------------------------------------------*/
@@ -10,6 +11,7 @@ void Fsm_ctor(Fsm *const me, StateHandler initial) {
 }
 
 void Fsm_init(Fsm *const me, Event const *const e) {
+	assert(me->state != (StateHandler )0);
 	(*me->state)(me, e);
 	(*me->state)(me, &entryEvt);
 }
@@ -18,6 +20,7 @@ void Fsm_dispatch(Fsm *const me, Event const *const e) {
 	State status;
 	StateHandler prev_state = me->state; /* save for later */
 
+	Q_ASSERT(me->state != (StateHandler) 0);
 	status = (*me->state)(me, e);
 
 	if (status == TRAN_STATUS) { /* transition taken? */
@@ -46,29 +49,33 @@ static void Active_eventLoop(void *pdata) {
 
 		/* wait for any event and receive it into object 'e' */
 		receiveStatus = xQueueReceive(me->queue, &e, portMAX_DELAY); /* BLOCKING! */
+		assert(receiveStatus == pdTRUE);
 
-		if (receiveStatus == pdTRUE) {
-			/* dispatch event to the active object 'me' */
-			Fsm_dispatch(&me->super, e); /* NO BLOCKING! */
-		}
+		/* dispatch event to the active object 'me' */
+		Fsm_dispatch(&me->super, e); /* NO BLOCKING! */
+
 	}
 }
 
 /*..........................................................................*/
 void Active_start(Active *const me, uint8_t priority, Event **const queueSto,
-		uint32_t queueLen, StaticQueue_t *queueBuffer, uint32_t *const stackSto,
-		uint32_t stackSize, StaticTask_t *const taskTCBBuffer) {
+		uint32_t queueLen, StaticQueue_t *const queueBuffer,
+		uint32_t *const stackSto, uint32_t stackSize,
+		StaticTask_t *const taskTCBBuffer) {
 
+	assert(me && (0 < prio) && (prio < configMAX_PRIORITIES));
 	me->queue = xQueueCreateStatic(queueLen, sizeof(Event*),
-			(uint8_t*) queueSto, queueBuffer);
-	me->thread = priority;
-	xTaskCreateStatic(&Active_eventLoop, NULL, stackSize, me, priority, stackSto,
-			taskTCBBuffer);
+			(uint8_t* ) queueSto, queueBuffer);
+	assert(me->queue != NULL);
+
+	me->thread = xTaskCreateStatic(&Active_eventLoop, NULL, stackSize, me,
+			priority, stackSto, taskTCBBuffer);
+	assert(me->thread != NULL);
 }
 
 /*..........................................................................*/
 void Active_post(Active *const me, Event const *const e) {
-	xQueueSendToBack(me->queue, (void*) &e, portMAX_DELAY);
+	xQueueSendToBack(me->queue, (void* ) &e, 0U);
 }
 
 /*--------------------------------------------------------------------------*/
@@ -89,6 +96,7 @@ void TimeEvent_ctor(TimeEvent *const me, Signal sig, Active *act) {
 
 	/* register one more TimeEvent instance */
 	taskENTER_CRITICAL();
+	assert(l_tevtNum < sizeof(l_tevt)/sizeof(l_tevt[0]));
 	l_tevt[l_tevtNum] = me;
 	++l_tevtNum;
 	taskEXIT_CRITICAL();
