@@ -85,6 +85,7 @@ static State Game_updateLevel(Game *const me, UserInputEvent const *const e) {
 	case ENTRY_SIG:
 		TimeEvent_disarm(&me->update_frame_te);
 		TimeEvent_disarm(&me->update_level_te);
+
 		TimeEvent_disarm(&me->gen_apple_te);
 		TimeEvent_disarm(&me->gen_enemy_te);
 		TimeEvent_disarm(&me->gen_pwr_te);
