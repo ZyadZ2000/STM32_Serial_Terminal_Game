@@ -12,6 +12,13 @@
 #define LVL4_SPEED (configTICK_RATE_HZ - 500U)
 #define LVL5_SPEED (configTICK_RATE_HZ - 700U)
 
+#define APPLE_SMBL 'A'
+#define ENEMY_SMBL 'E'
+#define MAX_NUM_LVLS 5U
+#define NUM_PWR_SMBL 2U
+#define FRAME_ROWS 50
+#define FRAME_COLS 70
+
 typedef struct {
 	uint8_t row;
 	uint8_t col;
@@ -36,8 +43,8 @@ typedef struct {
 	uint8_t d_pwr_factor; // factor for the double score powerup
 	bool is_s_pwr; // boolean for the slow down powerup
 	TimeEvent update_time_te; // Time event to update the elapsed time
-	TimeEvent update_dir_te; // Time event to update the direction
 	TimeEvent update_level_te; // Time event to update the level
+	TimeEvent update_dir_te; // Time event to update the direction
 	TimeEvent gen_apple_te;  // Time event to generate an apple symbol
 	TimeEvent gen_enemy_te; // Time event to generate an enemy symbol
 	TimeEvent gen_pwr_te; // Time event to generate a powerup symbol
