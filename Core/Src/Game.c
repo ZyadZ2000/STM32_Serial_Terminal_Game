@@ -16,16 +16,8 @@ static State Game_win(Game *const me, UserInputEvent const *const e);
 static State Game_lose(Game *const me, UserInputEvent const *const e);
 
 static uint32_t random(void);
-
-//Random generation using the XOR shift.
-uint32_t random(void) {
-	static u32 x = 10, y = 630, z = 100, w = 263;
-	u32 t = x ^ (x << 11);
-	x = y;
-	y = z;
-	z = w;
-	return w = w ^ (w >> 19) ^ t ^ (t >> 8);
-}
+static void GameFrame_clearSymbols(void);
+static void GameFrame_init(void);
 
 void Game_ctor(Game *me) {
 	Active_ctor(&me->super, (StateHandler) &Game_initial);
@@ -47,30 +39,19 @@ static State Game_initial(Game *const me, UserInputEvent const *const e) {
 static State Game_welcome(Game *const me, UserInputEvent const *const e) {
 	State status;
 	static const char welcome[] =
-			"Welcome to Snake game\r\ns:to start game\r\ne:to end game\r\n5 to move the snake upwards,\r\n2 for downwards,\r\n1 for left,\r\n3 for right\r\n";
+			"Welcome to Snake game\r\ns:to start game\r\nr:to reset game\r\n5 to move the snake upwards,\r\n2 for downwards,\r\n1 for left,\r\n3 for right\r\nYou lose if you eat an 'E' or eat yourself\r\n";
 	switch (((Event*) e)->sig) {
 	case ENTRY_SIG:
-		//send ScreenFrame AO an event with a pointer to the char * welcomeScreen
+		//send ScreenFrame AO an event with a pointer to the welcome array
 		ScreenFrameEvent e = { { SCREEN_FRAME_SIG }, welcome, sizeof(welcome) };
 		Active_post(AO_ScreenFrame, (Event*) e);
 		status = HANDLED_STATUS;
 		break;
 	case USER_IN_SIG:
 		if (e->user_in == 's') {
-			//initialize the game attributes
-			me->curr_lvl = 1;
 			me->max_lvl = 5;
-			me->curr_score = 0;
 			me->highest_score = 0;
-			me->elapsed_time = 0;
-			me->snake.head.row = 2;
-			me->snake.head.col = 6;
-			me->snake.tail.row = 2;
-			me->snake.tail.col = 2;
-			me->curr_dir = 0;
-			me->max_pwr_smbl = 20;
-			me->max_total_smbl = 40;
-			status = TRAN(&Game_updateLevel);
+			status = TRAN(&Game_startGame);
 		} else {
 			status = HANDLED_STATUS;
 		}
@@ -82,7 +63,47 @@ static State Game_welcome(Game *const me, UserInputEvent const *const e) {
 	return status;
 }
 
-static State Game_updateLevel(Game *const me, UserInputEvent const *const e) {
+static State Game_startGame(Game *const me, UserInputEvent const *const e) {
+	State status;
+	switch (((Event*) e)->sig) {
+	case ENTRY_SIG:
+		//initialize the game frame
+		GameFrame_init();
+		//initialize the game attributes
+		me->curr_lvl = 1;
+		me->curr_score = 0;
+		me->elapsed_time = 0;
+		me->snake.head.row = 2;
+		me->snake.head.col = 6;
+		me->snake.tail.row = 2;
+		me->snake.tail.col = 2;
+		me->curr_dir = 0;
+		me->d_pwr_factor = 1;
+		me->is_s_pwr = false;
+		ScreenFrameEvent e = { { SCREEN_FRAME_SIG }, game_frame,
+				sizeof(game_frame) };
+		Active_post(AO_ScreenFrame, (Event*) e);
+		status = HANDLED_STATUS;
+		break;
+	case USER_IN_SIG:
+		if (e->user_in == '1' || e->user_in == '2' || e->user_in == '3'
+				|| e->user_in == '5') {
+			me->curr_dir = e->user_in;
+			TimeEvent_arm(&me->update_time_te, configTICK_RATE_HZ,
+					configTICK_RATE_HZ);
+			status = TRAN(&Game_startLevel);
+		} else {
+			status = HANDLED_STATUS;
+		}
+		break;
+	default:
+		status = IGNORED_STATUS;
+	}
+
+	return status;
+}
+
+static State Game_startLevel(Game *const me, UserInputEvent const *const e) {
 	State status;
 	switch (((Event*) e)->sig) {
 	case ENTRY_SIG:
@@ -128,3 +149,64 @@ static State Game_updateLevel(Game *const me, UserInputEvent const *const e) {
 		break;
 	}
 }
+
+//Random generation using the XOR shift.
+static uint32_t random(void) {
+	static u32 x = 10, y = 630, z = 100, w = 263;
+	u32 t = x ^ (x << 11);
+	x = y;
+	y = z;
+	z = w;
+	return w = w ^ (w >> 19) ^ t ^ (t >> 8);
+}
+
+static void GameFrame_clearSymbols(void) {
+	uint8_t i, j;
+	for (i = 0; i < FRAME_ROWS; i++) {
+		for (j = 0; j < FRAME_COLS; j++) {
+			if (frame[i][j]
+					== 'D'|| frame[i][j] == 'S' || frame[i][j] == APPLE_SMBL || frame[i][j] == ENEMY_SMBL) {
+				frame[i][j] = ' ';
+			}
+		}
+	}
+}
+
+static void GameFrame_init(void) {
+	uint8_t i, j;
+	for (i = 0; i < FRAME_ROWS; i++) {
+		for (j = 0; j < FRAME_COLS; j++) {
+			if (i == 0 || i == (FRAME_ROWS - 1)) {
+				if (j == (FRAME_COLS - 2)) {
+					game_game_frame[i][j] = '\r';
+				} else if (j == (FRAME_COLS - 1)) {
+					if (i == (FRAME_ROWS - 1)) {
+						game_game_frame[i][j] = '\0';
+					} else {
+						game_game_frame[i][j] = '\n';
+					}
+				} else {
+					game_game_frame[i][j] = '#';
+				}
+			} else {
+				if (j == (FRAME_COLS - 2)) {
+					game_game_frame[i][j] = '\r';
+				} else if (j == (FRAME_COLS - 1)) {
+					game_game_frame[i][j] = '\n';
+				} else {
+					if (j == 0 || j == (FRAME_COLS - 3)) {
+						game_game_frame[i][j] = '#';
+						game_game_frame[i][j] = '#';
+					} else {
+						game_game_frame[i][j] = ' ';
+					}
+				}
+			}
+		}
+	}
+	for (i = 0; i < 5 - 1; i++) {
+		game_frame[2][i + 2] = '*';
+	}
+	game_frame[2][5 + 1] = '&';
+}
+
