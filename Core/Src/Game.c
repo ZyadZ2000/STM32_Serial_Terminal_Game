@@ -90,7 +90,7 @@ static State Game_startGame(Game *const me, UserInputEvent const *const e) {
 				|| e->user_in == '5') {
 			me->curr_dir = e->user_in;
 			TimeEvent_arm(&me->update_time_te, configTICK_RATE_HZ,
-					configTICK_RATE_HZ);
+			configTICK_RATE_HZ);
 			status = TRAN(&Game_startLevel);
 		} else {
 			status = HANDLED_STATUS;
@@ -107,42 +107,31 @@ static State Game_startLevel(Game *const me, UserInputEvent const *const e) {
 	State status;
 	switch (((Event*) e)->sig) {
 	case ENTRY_SIG:
-		TimeEvent_disarm(&me->update_frame_te);
 		TimeEvent_disarm(&me->update_level_te);
-
 		TimeEvent_disarm(&me->gen_apple_te);
 		TimeEvent_disarm(&me->gen_enemy_te);
 		TimeEvent_disarm(&me->gen_pwr_te);
-		TimeEvent_disarm(&me->clr_pwr_te);
+		TimeEvent_disarm(&me->clr_smbl_te);
 		TimeEvent_disarm(&me->rm_d_pwr);
 		TimeEvent_disarm(&me->rm_s_pwr);
 
-		if (me->curr_lvl == me->max_lvl + 1) {
-			TimeEvent_disarm(&me->update_time_te);
-			status = TRAN(&Game_gameover);
-		} else {
-			if (me->curr_lvl == 1) {
-				TimeEvent_arm(&me->update_time_te, configTICK_RATE_HZ / 1U,
-				configTICK_RATE_HZ / 1U);
-			}
-			me->game_speed = game_speed_arr[me->curr_lvl - 1]; // level 1 speed
-			me->d_pwr_factor = 1;
-			me->s_pwr_factor = 1;
-			me->num_normal_smbl = 0;
-			me->num_pwr_smbl = 0;
-			TimeEvent_arm(&me->update_frame_te, me->game_speed, me->game_speed);
-			TimeEvent_arm(&me->gen_apple_te, (me->game_speed) * 2,
-			configTICK_RATE_HZ / 1U);
-			TimeEvent_arm(&me->gen_enemy_te, configTICK_RATE_HZ / 1U,
-			configTICK_RATE_HZ / 1U);
-			TimeEvent_arm(&me->gen_pwr_te, configTICK_RATE_HZ / 1U,
-			configTICK_RATE_HZ / 1U);
-			TimeEvent_arm(&me->clr_pwr_te, configTICK_RATE_HZ / 1U,
-			configTICK_RATE_HZ / 1U);
+		if (me->curr_lvl > 1)
+			GameFrame_clearSymbols();
+		me->game_speed = game_speed_arr[me->curr_lvl - 1];
+		TimeEvent_arm(&me->update_level_te, configTICK_RATE_HZ * 30U, 0);
+		TimeEvent_arm(&me->clr_smbl_te, configTICK_RATE_HZ * 10U,
+				configTICK_RATE_HZ * 10U);
+		TimeEvent_arm(&me->update_dir_te, me->game_speed, me->game_speed);
+		TimeEvent_arm(&me->gen_apple_te, (uint32_t) (me->game_speed * 1.50),
+				(uint32_t) (me->game_speed * 1.50));
+		TimeEvent_arm(&me->gen_enemy_te, (uint32_t) (me->game_speed * 3),
+				(uint32_t) (me->game_speed * 3));
+		TimeEvent_arm(&me->gen_pwr_te, configTICK_RATE_HZ * 2,
+				configTICK_RATE_HZ * 2);
 
-			//clear the frame of all the symbols
-			status = TRAN(&Game_playing);
-		}
+		//clear the frame of all the symbols
+		status = TRAN(&Game_playing);
+
 		break;
 	default:
 		status = IGNORED_STATUS;
