@@ -20,7 +20,7 @@ void Fsm_dispatch(Fsm *const me, Event const *const e) {
 	State status;
 	StateHandler prev_state = me->state; /* save for later */
 
-	Q_ASSERT(me->state != (StateHandler) 0);
+	assert(me->state != (StateHandler) 0);
 	status = (*me->state)(me, e);
 
 	if (status == TRAN_STATUS) { /* transition taken? */
