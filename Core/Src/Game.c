@@ -1,10 +1,11 @@
 #include "Game.h"
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
 
 extern Active *AO_ScreenFrame;
 
-// DISPLAY THE SCORE AND TIME TO THE FRAME
-
-static char game_frame[FRAME_ROWS][FRAME_COLS]; //The entire game frame.
+static char game_frame[FRAME_ROWS + 2][FRAME_COLS]; //The entire game frame.
 static const uint16_t game_speed_arr[MAX_NUM_LVLS] = { LVL1_SPEED, LVL2_SPEED,
 LVL3_SPEED, LVL4_SPEED, LVL5_SPEED };
 static const char pwr_smbl_arr[NUM_PWR_SMBL] = { 'S', 'D' };
@@ -17,7 +18,7 @@ static State Game_playing(Game *const me, UserInputEvent const *const e);
 static State Game_win(Game *const me, UserInputEvent const *const e);
 static State Game_lose(Game *const me, UserInputEvent const *const e);
 
-static uint32_t random(void);
+static uint32_t Game_randomGenerator(void);
 static void GameFrame_clearSymbols(void);
 static void GameFrame_init(void);
 
@@ -179,8 +180,8 @@ static State Game_playing(Game *const me, UserInputEvent const *const e) {
 		uint8_t row;
 		uint8_t col;
 		do {
-			row = (uint8_t) (random() % FRAME_ROWS);
-			col = (uint8_t) (random() % FRAME_COLS);
+			row = (uint8_t) (Game_randomGenerator() % FRAME_ROWS);
+			col = (uint8_t) (Game_randomGenerator() % FRAME_COLS);
 		} while (game_frame[row][col] != ' ');
 		taskENTER_CRITICAL();
 		game_frame[row][col] = APPLE_SMBL;
@@ -192,8 +193,8 @@ static State Game_playing(Game *const me, UserInputEvent const *const e) {
 		uint8_t row;
 		uint8_t col;
 		do {
-			row = (uint8_t) (random() % FRAME_ROWS);
-			col = (uint8_t) (random() % FRAME_COLS);
+			row = (uint8_t) (Game_randomGenerator() % FRAME_ROWS);
+			col = (uint8_t) (Game_randomGenerator() % FRAME_COLS);
 		} while (game_frame[row][col] != ' ');
 		taskENTER_CRITICAL();
 		game_frame[row][col] = ENEMY_SMBL;
@@ -202,12 +203,12 @@ static State Game_playing(Game *const me, UserInputEvent const *const e) {
 		break;
 	}
 	case GEN_PWR_SIG: {
-		uint8_t pwr = pwr_smbl_arr[random() % 2];
+		uint8_t pwr = pwr_smbl_arr[Game_randomGenerator() % 2];
 		uint8_t row;
 		uint8_t col;
 		do {
-			row = (uint8_t) (random() % FRAME_ROWS);
-			col = (uint8_t) (random() % FRAME_COLS);
+			row = (uint8_t) (Game_randomGenerator() % FRAME_ROWS);
+			col = (uint8_t) (Game_randomGenerator() % FRAME_COLS);
 		} while (game_frame[row][col] != ' ');
 		taskENTER_CRITICAL();
 		game_frame[row][col] = pwr;
@@ -245,7 +246,11 @@ static State Game_playing(Game *const me, UserInputEvent const *const e) {
 	}
 	case ONE_SEC_SIG: {
 		me->elapsed_time++;
-		//change the elapsed time in the displayed frame.
+		char buffer[10];
+		itoa(me->elapsed_time, buffer, 10);
+		taskENTER_CRITICAL();
+		strcpy(&game_frame[FRAME_ROWS + 1][6], buffer);
+		taskEXIT_CRITICAL();
 		status = HANDLED_STATUS;
 		break;
 	}
@@ -271,10 +276,15 @@ static State Game_playing(Game *const me, UserInputEvent const *const e) {
 
 static State Game_win(Game *const me, UserInputEvent const *const e) {
 	State status;
-	static char win_frame[15];
+	static char win_frame[80];
 	switch (((Event*) e)->sig) {
 	case ENTRY_SIG: {
 		TimeEvent_disarm(&me->update_time_te);
+		if (me->curr_score >= me->highest_score)
+			me->highest_score = me->curr_score;
+		sprintf(win_frame,
+				"YOU WIN!!!\r\nSCORE: %d\r\nHEIGHEST SCORE: %d\r\npress 'r' to restart\r\n",
+				me->curr_score, me->highest_score);
 		ScreenFrameEvent se = { { SCREEN_FRAME_SIG }, (char*) win_frame,
 				sizeof(win_frame) };
 		Active_post(AO_ScreenFrame, (Event*) &se);
@@ -293,10 +303,15 @@ static State Game_win(Game *const me, UserInputEvent const *const e) {
 }
 static State Game_lose(Game *const me, UserInputEvent const *const e) {
 	State status;
-	static char lose_frame[15];
+	static char lose_frame[81];
 	switch (((Event*) e)->sig) {
 	case ENTRY_SIG: {
 		TimeEvent_disarm(&me->update_time_te);
+		if (me->curr_score >= me->highest_score)
+			me->highest_score = me->curr_score;
+		sprintf(lose_frame,
+				"GAMEOVER!!!\r\nSCORE: %d\r\nHEIGHEST SCORE: %d\r\npress 'r' to restart\r\n",
+				me->curr_score, me->highest_score);
 		ScreenFrameEvent se = { { SCREEN_FRAME_SIG }, (char*) lose_frame,
 				sizeof(lose_frame) };
 		Active_post(AO_ScreenFrame, (Event*) &se);
@@ -315,7 +330,7 @@ static State Game_lose(Game *const me, UserInputEvent const *const e) {
 }
 
 //Random generation using the XOR shift.
-static uint32_t random(void) {
+static uint32_t Game_randomGenerator(void) {
 	static uint32_t x = 10, y = 630, z = 100, w = 263;
 	uint32_t t = x ^ (x << 11);
 	x = y;
@@ -368,6 +383,27 @@ static void GameFrame_init(void) {
 			}
 		}
 	}
+	strcpy(game_frame[FRAME_ROWS], "Score: 0");
+	for (i = 8; i < FRAME_COLS; i++) {
+		if (i == (FRAME_COLS - 2)) {
+			game_frame[FRAME_ROWS][i] = '\r';
+		} else if (i == (FRAME_COLS - 1)) {
+			game_frame[FRAME_ROWS][i] = '\n';
+		} else {
+			game_frame[FRAME_ROWS][i] = ' ';
+		}
+	}
+	strcpy(game_frame[FRAME_ROWS + 1], "Time: 0");
+	for (i = 7; i < FRAME_COLS; i++) {
+		if (i == (FRAME_COLS - 2)) {
+			game_frame[FRAME_ROWS + 1][i] = '\r';
+		} else if (i == (FRAME_COLS - 1)) {
+			game_frame[FRAME_ROWS + 1][i] = '\n';
+		} else {
+			game_frame[FRAME_ROWS + 1][i] = ' ';
+		}
+	}
+
 	for (i = 0; i < 5 - 1; i++) {
 		game_frame[2][i + 2] = '*';
 	}
@@ -401,14 +437,15 @@ static State Game_moveSnakeLeft(Game *const me) {
 			TimeEvent_disarm(&me->rm_d_pwr);
 			TimeEvent_arm(&me->rm_d_pwr, configTICK_RATE_HZ * 5U, 0U);
 			break;
-		default:
-			me->curr_score += 1 * me->d_pwr_factor;
-			break;
 		}
+		me->curr_score += 1 * me->d_pwr_factor;
+		char buffer[6];
+		itoa(me->curr_score, buffer, 10);
 		taskENTER_CRITICAL();
 		game_frame[me->snake.head.row][me->snake.head.col] = '*';
 		game_frame[me->snake.head.row][me->snake.head.col - 1] = '*';
 		game_frame[me->snake.head.row][me->snake.head.col - 2] = '&';
+		strcpy(&game_frame[FRAME_ROWS][7], buffer);
 		taskEXIT_CRITICAL();
 		me->snake.head.col -= 2;
 		return HANDLED_STATUS;
@@ -472,14 +509,15 @@ static State Game_moveSnakeRight(Game *const me) {
 			TimeEvent_disarm(&me->rm_d_pwr);
 			TimeEvent_arm(&me->rm_d_pwr, configTICK_RATE_HZ * 5U, 0U);
 			break;
-		default:
-			me->curr_score += 1 * me->d_pwr_factor;
-			break;
 		}
+		me->curr_score += 1 * me->d_pwr_factor;
+		char buffer[6];
+		itoa(me->curr_score, buffer, 10);
 		taskENTER_CRITICAL();
 		game_frame[me->snake.head.row][me->snake.head.col] = '*';
 		game_frame[me->snake.head.row][me->snake.head.col + 1] = '*';
 		game_frame[me->snake.head.row][me->snake.head.col + 2] = '&';
+		strcpy(&game_frame[FRAME_ROWS][7], buffer);
 		taskEXIT_CRITICAL();
 		me->snake.head.col += 2;
 		return HANDLED_STATUS;
@@ -543,14 +581,15 @@ static State Game_moveSnakeUp(Game *const me) {
 			TimeEvent_disarm(&me->rm_d_pwr);
 			TimeEvent_arm(&me->rm_d_pwr, configTICK_RATE_HZ * 5U, 0U);
 			break;
-		default:
-			me->curr_score += 1 * me->d_pwr_factor;
-			break;
 		}
+		me->curr_score += 1 * me->d_pwr_factor;
+		char buffer[6];
+		itoa(me->curr_score, buffer, 10);
 		taskENTER_CRITICAL();
 		game_frame[me->snake.head.row][me->snake.head.col] = '*';
 		game_frame[me->snake.head.row - 1][me->snake.head.col] = '*';
 		game_frame[me->snake.head.row - 2][me->snake.head.col] = '&';
+		strcpy(&game_frame[FRAME_ROWS][7], buffer);
 		taskEXIT_CRITICAL();
 		me->snake.head.row -= 2;
 		return HANDLED_STATUS;
@@ -614,14 +653,15 @@ static State Game_moveSnakeDown(Game *const me) {
 			TimeEvent_disarm(&me->rm_d_pwr);
 			TimeEvent_arm(&me->rm_d_pwr, configTICK_RATE_HZ * 5U, 0U);
 			break;
-		default:
-			me->curr_score += 1 * me->d_pwr_factor;
-			break;
 		}
+		me->curr_score += 1 * me->d_pwr_factor;
+		char buffer[6];
+		itoa(me->curr_score, buffer, 10);
 		taskENTER_CRITICAL();
 		game_frame[me->snake.head.row][me->snake.head.col] = '*';
 		game_frame[me->snake.head.row + 1][me->snake.head.col] = '*';
 		game_frame[me->snake.head.row + 2][me->snake.head.col] = '&';
+		strcpy(&game_frame[FRAME_ROWS][7], buffer);
 		taskEXIT_CRITICAL();
 		me->snake.head.row -= 2;
 		return HANDLED_STATUS;

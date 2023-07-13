@@ -27,7 +27,6 @@ typedef struct {
 typedef struct {
 	Position head;
 	Position tail;
-	uint8_t length;
 } Snake;
 
 typedef struct {
