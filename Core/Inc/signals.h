@@ -1,6 +1,8 @@
 #ifndef SIGNALS_H
 #define SIGNALS_H
 
+#include "freertos_ao.h"
+
 enum {
 	USER_IN_SIG = USER_SIG,
 	TIMEOUT_SIG,

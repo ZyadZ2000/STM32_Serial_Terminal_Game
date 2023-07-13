@@ -4,6 +4,7 @@
 #include <string.h>
 
 extern Active *AO_ScreenFrame;
+extern UART_StartReceiveIT(void);
 
 static char game_frame[FRAME_ROWS + 2][FRAME_COLS]; //The entire game frame.
 static const uint16_t game_speed_arr[MAX_NUM_LVLS] = { LVL1_SPEED, LVL2_SPEED,
@@ -54,6 +55,7 @@ static State Game_welcome(Game *const me, UserInputEvent const *const e) {
 		ScreenFrameEvent se = { { SCREEN_FRAME_SIG }, (char*) welcome,
 				sizeof(welcome) };
 		Active_post(AO_ScreenFrame, (Event*) &se);
+		UART_StartReceiveIT();
 		status = HANDLED_STATUS;
 		break;
 	}
@@ -65,6 +67,7 @@ static State Game_welcome(Game *const me, UserInputEvent const *const e) {
 		} else {
 			status = HANDLED_STATUS;
 		}
+		UART_StartReceiveIT();
 		break;
 	}
 	default: {
@@ -107,6 +110,7 @@ static State Game_startGame(Game *const me, UserInputEvent const *const e) {
 		} else {
 			status = HANDLED_STATUS;
 		}
+		UART_StartReceiveIT();
 		break;
 	default:
 		status = IGNORED_STATUS;
@@ -139,6 +143,9 @@ static State Game_startLevel(Game *const me, UserInputEvent const *const e) {
 		//clear the frame of all the symbols
 		status = TRAN(&Game_playing);
 		break;
+	case USER_IN_SIG:
+		UART_StartReceiveIT();
+		break;
 	default:
 		status = IGNORED_STATUS;
 		break;
@@ -159,6 +166,7 @@ static State Game_playing(Game *const me, UserInputEvent const *const e) {
 		} else {
 			status = HANDLED_STATUS;
 		}
+		UART_StartReceiveIT();
 		break;
 	case DIR_UPDATE_SIG:
 		switch (me->curr_dir) {
@@ -297,6 +305,7 @@ static State Game_win(Game *const me, UserInputEvent const *const e) {
 		} else {
 			status = HANDLED_STATUS;
 		}
+		UART_StartReceiveIT();
 	}
 	}
 	return status;
@@ -324,6 +333,7 @@ static State Game_lose(Game *const me, UserInputEvent const *const e) {
 		} else {
 			status = HANDLED_STATUS;
 		}
+		UART_StartReceiveIT();
 	}
 	}
 	return status;
