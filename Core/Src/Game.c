@@ -11,6 +11,7 @@ static char game_frame[FRAME_ROWS + 2][FRAME_COLS]; //The entire game frame.
 static const uint16_t game_speed_arr[MAX_NUM_LVLS] = { LVL1_SPEED, LVL2_SPEED,
 LVL3_SPEED, LVL4_SPEED, LVL5_SPEED };
 static const char pwr_smbl_arr[NUM_PWR_SMBL] = { 'S', 'D' };
+static ScreenFrameEvent se = { { SCREEN_FRAME_SIG } };
 
 static State Game_initial(Game *const me, UserInputEvent const *const e);
 static State Game_welcome(Game *const me, UserInputEvent const *const e);
@@ -53,8 +54,8 @@ static State Game_welcome(Game *const me, UserInputEvent const *const e) {
 	switch (((Event*) e)->sig) {
 	case ENTRY_SIG: {
 		//send ScreenFrame AO an event with a pointer to the welcome array
-		ScreenFrameEvent se = { { SCREEN_FRAME_SIG }, (char*) welcome,
-				sizeof(welcome) };
+		se.frame = (char *) welcome;
+		se.frame_len = sizeof(welcome);
 		Active_post(AO_ScreenFrame, (Event*) &se);
 		UART_StartReceiveIT();
 		status = HANDLED_STATUS;
@@ -96,8 +97,8 @@ static State Game_startGame(Game *const me, UserInputEvent const *const e) {
 		me->curr_dir = 0;
 		me->d_pwr_factor = 1;
 		me->is_s_pwr = false;
-		ScreenFrameEvent se = { { SCREEN_FRAME_SIG }, (char*) game_frame,
-				sizeof(game_frame) };
+		se.frame = (char*) game_frame;
+		se.frame_len = sizeof(game_frame);
 		Active_post(AO_ScreenFrame, (Event*) &se);
 		status = HANDLED_STATUS;
 		break;
@@ -294,8 +295,8 @@ static State Game_win(Game *const me, UserInputEvent const *const e) {
 		sprintf(win_frame,
 				"YOU WIN!!!\r\nSCORE: %d\r\nHEIGHEST SCORE: %d\r\npress 'r' to restart\r\n",
 				me->curr_score, me->highest_score);
-		ScreenFrameEvent se = { { SCREEN_FRAME_SIG }, (char*) win_frame,
-				sizeof(win_frame) };
+		se.frame = win_frame;
+		se.frame_len = 80;
 		Active_post(AO_ScreenFrame, (Event*) &se);
 		status = HANDLED_STATUS;
 		break;
@@ -322,8 +323,8 @@ static State Game_lose(Game *const me, UserInputEvent const *const e) {
 		sprintf(lose_frame,
 				"GAMEOVER!!!\r\nSCORE: %d\r\nHEIGHEST SCORE: %d\r\npress 'r' to restart\r\n",
 				me->curr_score, me->highest_score);
-		ScreenFrameEvent se = { { SCREEN_FRAME_SIG }, (char*) lose_frame,
-				sizeof(lose_frame) };
+		se.frame = lose_frame;
+		se.frame_len = 81;
 		Active_post(AO_ScreenFrame, (Event*) &se);
 		status = HANDLED_STATUS;
 		break;
