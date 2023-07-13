@@ -63,7 +63,7 @@ void Active_start(Active *const me, uint8_t priority, Event **const queueSto,
 		uint32_t *const stackSto, uint32_t stackSize,
 		StaticTask_t *const taskTCBBuffer) {
 
-	assert(me && (0 < prio) && (prio < configMAX_PRIORITIES));
+	assert(me && (0 < priority) && (priority < configMAX_PRIORITIES));
 	me->queue = xQueueCreateStatic(queueLen, sizeof(Event*),
 			(uint8_t* ) queueSto, queueBuffer);
 	assert(me->queue != NULL);
