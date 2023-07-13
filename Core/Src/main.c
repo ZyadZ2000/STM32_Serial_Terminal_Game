@@ -21,7 +21,6 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "freertos_ao.h"
 #include "Game.h"
 #include "ScreenFrame.h"
 /* USER CODE END Includes */
@@ -46,33 +45,32 @@ UART_HandleTypeDef huart1;
 
 /* USER CODE BEGIN PV */
 
-int8_t uart_data;
+static int8_t uart_data;
 
 /* GAME AO*/
-StaticQueue_t static_game_queue;
-StaticTask_t game_task;
-StackType_t game_stack[200];
-Event *game_queue_buffer[20];
-Game game;
+static StaticQueue_t static_game_queue;
+static StaticTask_t game_task;
+static StackType_t game_stack[200];
+static Event *game_queue_buffer[20];
+static Game game;
 Active *AO_Game = &game.super;
 
 /* SCREENFRAME AO */
-StaticQueue_t static_screen_frame_queue;
-StaticTask_t screen_frame_task;
-StackType_t screen_frame_stack[200];
-Event *screen_frame_queue_buffer[20];
-ScreenFrame screen_frame;
+static StaticQueue_t static_screen_frame_queue;
+static StaticTask_t screen_frame_task;
+static StackType_t screen_frame_stack[200];
+static Event *screen_frame_queue_buffer[20];
+static ScreenFrame screen_frame;
 Active *AO_ScreenFrame = &screen_frame.super;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
-void SystemClock_Config(void);
+static void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_USART1_UART_Init(void);
 
 /* USER CODE BEGIN PFP */
-void UART_StartReceiveIT(void);
-
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
