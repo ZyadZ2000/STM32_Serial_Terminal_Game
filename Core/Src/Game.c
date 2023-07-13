@@ -4,7 +4,7 @@
 #include <string.h>
 
 extern Active *AO_ScreenFrame;
-extern UART_StartReceiveIT(void);
+extern void UART_StartReceiveIT(void);
 
 static char game_frame[FRAME_ROWS + 2][FRAME_COLS]; //The entire game frame.
 static const uint16_t game_speed_arr[MAX_NUM_LVLS] = { LVL1_SPEED, LVL2_SPEED,

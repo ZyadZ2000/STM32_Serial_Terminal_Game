@@ -80,12 +80,12 @@ void UART_StartReceiveIT(void);
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 	if (huart->Instance == USART1) {
 		UserInputEvent e = {{USER_IN_SIG},uart_data};
-		Active_post(AO_Game, &e);
+		Active_post(AO_Game, (Event *)&e);
 	}
 }
 
 void UART_StartReceiveIT(void) {
-	HAL_UART_Receive_IT(huart, (uint8_t *) &uart_data, 1);
+	HAL_UART_Receive_IT(&huart1, (uint8_t *) &uart_data, 1);
 }
 /* USER CODE END 0 */
 
