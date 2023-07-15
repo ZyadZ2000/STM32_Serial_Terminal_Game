@@ -5,12 +5,20 @@
 #include "Game.h"
 
 extern Active *AO_ScreenFrame;
+extern Active *AO_Game;
 
 static char game_frame[FRAME_ROWS + 2][FRAME_COLS]; //The entire game frame.
 static const uint16_t game_speed_arr[MAX_NUM_LVLS] = { LVL1_SPEED, LVL2_SPEED,
 LVL3_SPEED, LVL4_SPEED, LVL5_SPEED };
 static const char pwr_smbl_arr[NUM_PWR_SMBL] = { 'S', 'D' };
 static ScreenFrameEvent se = { { SCREEN_FRAME_SIG } };
+static const Event dir_e = { DIR_UPDATE_SIG };
+static const Event apple_e = { GEN_APPLE_SIG };
+static const Event enemy_e = { GEN_ENEMY_SIG };
+static const Event power_e = { GEN_PWR_SIG };
+static const Event clr_e = { CLR_SMBL_SIG };
+static const Event d_to_e = { D_PWR_TIMEOUT_SIG };
+static const Event s_to_e = { S_PWR_TIMEOUT_SIG };
 static int8_t user_input;
 
 static State Game_initial(Game *const me, Event const *const e);
@@ -27,15 +35,7 @@ static void GameFrame_init(Snake *snake);
 
 void Game_ctor(Game *me, UART_HandleTypeDef *uart) {
 	Active_ctor(&me->super, (StateHandler) &Game_initial);
-	TimeEvent_ctor(&me->update_time_te, ONE_SEC_SIG, &me->super);
-	TimeEvent_ctor(&me->update_level_te, LVL_FINSIH_SIG, &me->super);
-	TimeEvent_ctor(&me->update_dir_te, DIR_UPDATE_SIG, &me->super);
-	TimeEvent_ctor(&me->gen_apple_te, GEN_APPLE_SIG, &me->super);
-	TimeEvent_ctor(&me->gen_enemy_te, GEN_ENEMY_SIG, &me->super);
-	TimeEvent_ctor(&me->gen_pwr_te, GEN_PWR_SIG, &me->super);
-	TimeEvent_ctor(&me->clr_smbl_te, CLR_SMBL_SIG, &me->super);
-	TimeEvent_ctor(&me->rm_d_pwr, D_PWR_TIMEOUT_SIG, &me->super);
-	TimeEvent_ctor(&me->rm_s_pwr, S_PWR_TIMEOUT_SIG, &me->super);
+	TimeEvent_ctor(&me->update_time_te, TIMEOUT_SIG, &me->super);
 	me->uart = uart;
 }
 
@@ -86,6 +86,7 @@ static State Game_startGame(Game *const me, Event const *const e) {
 		me->curr_lvl = 1;
 		me->curr_score = 0;
 		me->elapsed_time = 0;
+		me->time_count = 0;
 		me->curr_dir = 0;
 		me->d_pwr_factor = 1;
 		me->is_s_pwr = false;
@@ -98,8 +99,8 @@ static State Game_startGame(Game *const me, Event const *const e) {
 		if (user_input == '1' || user_input == '2' || user_input == '3'
 				|| user_input == '5') {
 			me->curr_dir = user_input;
-			TimeEvent_arm(&me->update_time_te, configTICK_RATE_HZ,
-			configTICK_RATE_HZ);
+			TimeEvent_arm(&me->update_time_te, (uint32_t) TIMEOUT,
+					(uint32_t) TIMEOUT);
 			status = TRAN(&Game_startLevel);
 		} else {
 			status = HANDLED_STATUS;
@@ -123,18 +124,6 @@ static State Game_startLevel(Game *const me, Event const *const e) {
 			taskEXIT_CRITICAL();
 		}
 		me->game_speed = game_speed_arr[me->curr_lvl - 1];
-		TimeEvent_arm(&me->update_level_te, configTICK_RATE_HZ * 30U, 0);
-		TimeEvent_arm(&me->clr_smbl_te, configTICK_RATE_HZ * 10U,
-		configTICK_RATE_HZ * 10U);
-		TimeEvent_arm(&me->update_dir_te, me->game_speed, me->game_speed);
-		TimeEvent_arm(&me->gen_apple_te, (uint32_t) (me->game_speed * 1.50),
-				(uint32_t) (me->game_speed * 1.50));
-		TimeEvent_arm(&me->gen_enemy_te, (uint32_t) (me->game_speed * 3),
-				(uint32_t) (me->game_speed * 3));
-		TimeEvent_arm(&me->gen_pwr_te, configTICK_RATE_HZ * 2,
-		configTICK_RATE_HZ * 2);
-
-		//clear the frame of all the symbols
 		status = TRAN(&Game_playing);
 		break;
 	default:
@@ -222,44 +211,77 @@ static State Game_playing(Game *const me, Event const *const e) {
 	}
 	case D_PWR_TIMEOUT_SIG: {
 		me->d_pwr_factor = 1;
+		me->d_pwr_time_count = 0;
 		status = HANDLED_STATUS;
 		break;
 	}
 	case S_PWR_TIMEOUT_SIG: {
-		TimeEvent_disarm(&me->gen_enemy_te);
-		TimeEvent_arm(&me->gen_enemy_te, (uint32_t) (me->game_speed * 3),
-				(uint32_t) (me->game_speed * 3));
+		me->is_s_pwr = false;
+		me->s_pwr_time_count = 0;
 		status = HANDLED_STATUS;
 		break;
 	}
-	case LVL_FINSIH_SIG: {
-		if (me->curr_lvl == me->max_lvl)
-			status = TRAN(&Game_win);
-		else {
-			me->curr_lvl++;
-			status = TRAN(&Game_startLevel);
+	case TIMEOUT_SIG: {
+		me->time_count++;
+		/* Update the elapsed time every second */
+		if (me->time_count % SECOND_DIVIDE == 0U) {
+			me->elapsed_time++;
+			char buffer[6];
+			itoa(me->elapsed_time, buffer, 10);
+			taskENTER_CRITICAL();
+			strcpy(&game_frame[FRAME_ROWS + 1][6], buffer);
+			taskEXIT_CRITICAL();
+		}
+		/* Update the level every 30 seconds */
+		if (me->time_count % (30 * SECOND_DIVIDE) == 0U) {
+			if (me->curr_lvl == me->max_lvl)
+				status = TRAN(&Game_win);
+			else {
+				me->curr_lvl++;
+				status = TRAN(&Game_startLevel);
+			}
+		} else {
+
+			/* Update the direction every game speed */
+			if (me->time_count % me->game_speed == 0U) {
+				Active_post(AO_Game, &dir_e);
+			}
+			if (me->time_count % (uint32_t) (me->game_speed * 1.50) == 0U) {
+				Active_post(AO_Game, &apple_e);
+			}
+			uint8_t enemy_condition =
+					me->is_s_pwr ?
+							me->time_count % (uint32_t) (me->game_speed * 5U)
+									== 0U :
+							me->time_count % (uint32_t) (me->game_speed * 3U)
+									== 0U;
+			if (enemy_condition) {
+				Active_post(AO_Game, &enemy_e);
+			}
+
+			if (me->time_count % (2 * SECOND_DIVIDE) == 0U) {
+				Active_post(AO_Game, &power_e);
+			}
+
+			if (me->time_count % (10 * SECOND_DIVIDE) == 0U) {
+				Active_post(AO_Game, &clr_e);
+			}
+
+			if ((me->time_count - me->d_pwr_time_count) == 0) {
+				Active_post(AO_Game, &d_to_e);
+			}
+
+			if ((me->time_count - me->s_pwr_time_count) == 0) {
+				Active_post(AO_Game, &s_to_e);
+			}
 		}
 		break;
 	}
-	case ONE_SEC_SIG: {
-		me->elapsed_time++;
-		char buffer[6];
-		itoa(me->elapsed_time, buffer, 10);
-		taskENTER_CRITICAL();
-		strcpy(&game_frame[FRAME_ROWS + 1][6], buffer);
-		taskEXIT_CRITICAL();
-		status = HANDLED_STATUS;
-		break;
-	}
 	case EXIT_SIG: {
-		TimeEvent_disarm(&me->update_level_te);
-		TimeEvent_disarm(&me->update_dir_te);
-		TimeEvent_disarm(&me->gen_apple_te);
-		TimeEvent_disarm(&me->gen_enemy_te);
-		TimeEvent_disarm(&me->gen_pwr_te);
-		TimeEvent_disarm(&me->clr_smbl_te);
-		TimeEvent_disarm(&me->rm_d_pwr);
-		TimeEvent_disarm(&me->rm_s_pwr);
+		me->d_pwr_factor = 1;
+		me->d_pwr_time_count = 0;
+		me->is_s_pwr = false;
+		me->s_pwr_time_count = 0;
 		status = HANDLED_STATUS;
 		break;
 	}
@@ -436,16 +458,12 @@ static State Game_moveSnake(Game *const me, uint8_t row_dir, uint8_t col_dir) {
 	case 'S':
 		if (!me->is_s_pwr) {
 			me->is_s_pwr = true;
-			TimeEvent_disarm(&me->gen_enemy_te);
-			TimeEvent_arm(&me->gen_enemy_te, (uint32_t) (me->game_speed * 5),
-					(uint32_t) (me->game_speed * 5));
-			TimeEvent_arm(&me->rm_s_pwr, configTICK_RATE_HZ * 7U, 0U);
+			me->s_pwr_time_count = me->time_count + 7 * SECOND_DIVIDE;
 		}
 		break;
 	case 'D':
 		me->d_pwr_factor++;
-		TimeEvent_disarm(&me->rm_d_pwr);
-		TimeEvent_arm(&me->rm_d_pwr, configTICK_RATE_HZ * 5U, 0U);
+		me->d_pwr_time_count = me->time_count + 5 * SECOND_DIVIDE;
 		break;
 	}
 	taskENTER_CRITICAL();
