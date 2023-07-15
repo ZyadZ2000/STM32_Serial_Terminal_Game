@@ -44,7 +44,7 @@
 UART_HandleTypeDef huart1;
 
 /* USER CODE BEGIN PV */
-static UserInputEvent e = { { USER_IN_SIG }};
+static const Event e = { USER_IN_SIG };
 
 /* GAME AO*/
 static StaticQueue_t game_queue_obj;
@@ -76,7 +76,7 @@ static void MX_USART1_UART_Init(void);
 /* USER CODE BEGIN 0 */
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 	if (huart->Instance == USART1) {
-		Active_postFromISR(AO_Game, (Event*) &e);
+		Active_postFromISR(AO_Game, &e);
 	}
 }
 

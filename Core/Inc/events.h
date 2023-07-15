@@ -5,11 +5,6 @@
 
 typedef struct {
 	Event super;
-	char user_in; // user input
-} UserInputEvent;
-
-typedef struct {
-	Event super;
 	char * frame;
 	uint16_t frame_len;
 } ScreenFrameEvent;
