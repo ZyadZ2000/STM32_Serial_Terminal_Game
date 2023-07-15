@@ -1,17 +1,16 @@
 #include "Game.h"
-#include "main.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 
 extern Active *AO_ScreenFrame;
-extern void UART_StartReceiveIT(void);
 
 static char game_frame[FRAME_ROWS + 2][FRAME_COLS]; //The entire game frame.
 static const uint16_t game_speed_arr[MAX_NUM_LVLS] = { LVL1_SPEED, LVL2_SPEED,
 LVL3_SPEED, LVL4_SPEED, LVL5_SPEED };
 static const char pwr_smbl_arr[NUM_PWR_SMBL] = { 'S', 'D' };
 static ScreenFrameEvent se = { { SCREEN_FRAME_SIG } };
+static int8_t user_input;
 
 static State Game_initial(Game *const me, UserInputEvent const *const e);
 static State Game_welcome(Game *const me, UserInputEvent const *const e);
@@ -30,7 +29,7 @@ static State Game_moveSnakeRight(Game *const me);
 static State Game_moveSnakeUp(Game *const me);
 static State Game_moveSnakeDown(Game *const me);
 
-void Game_ctor(Game *me) {
+void Game_ctor(Game *me, UART_HandleTypeDef * uart) {
 	Active_ctor(&me->super, (StateHandler) &Game_initial);
 	TimeEvent_ctor(&me->update_time_te, ONE_SEC_SIG, &me->super);
 	TimeEvent_ctor(&me->update_level_te, LVL_FINSIH_SIG, &me->super);
@@ -41,6 +40,7 @@ void Game_ctor(Game *me) {
 	TimeEvent_ctor(&me->clr_smbl_te, CLR_SMBL_SIG, &me->super);
 	TimeEvent_ctor(&me->rm_d_pwr, D_PWR_TIMEOUT_SIG, &me->super);
 	TimeEvent_ctor(&me->rm_s_pwr, S_PWR_TIMEOUT_SIG, &me->super);
+	me->uart = uart;
 }
 
 static State Game_initial(Game *const me, UserInputEvent const *const e) {
@@ -57,19 +57,19 @@ static State Game_welcome(Game *const me, UserInputEvent const *const e) {
 		se.frame = (char *) welcome;
 		se.frame_len = sizeof(welcome);
 		Active_post(AO_ScreenFrame, (Event*) &se);
-		UART_StartReceiveIT();
+		HAL_UART_Receive_IT(me->uart, (uint8_t *) &user_input, 1U);
 		status = HANDLED_STATUS;
 		break;
 	}
 	case USER_IN_SIG: {
-		if (e->user_in == 's') {
+		if (user_input == 's') {
 			me->max_lvl = 5;
 			me->highest_score = 0;
 			status = TRAN(&Game_startGame);
 		} else {
 			status = HANDLED_STATUS;
 		}
-		UART_StartReceiveIT();
+		HAL_UART_Receive_IT(me->uart, (uint8_t *) &user_input, 1U);
 		break;
 	}
 	default: {
@@ -103,16 +103,16 @@ static State Game_startGame(Game *const me, UserInputEvent const *const e) {
 		status = HANDLED_STATUS;
 		break;
 	case USER_IN_SIG:
-		if (e->user_in == '1' || e->user_in == '2' || e->user_in == '3'
-				|| e->user_in == '5') {
-			me->curr_dir = e->user_in;
+		if (user_input == '1' || user_input == '2' || user_input == '3'
+				|| user_input == '5') {
+			me->curr_dir = user_input;
 			TimeEvent_arm(&me->update_time_te, configTICK_RATE_HZ,
 			configTICK_RATE_HZ);
 			status = TRAN(&Game_startLevel);
 		} else {
 			status = HANDLED_STATUS;
 		}
-		UART_StartReceiveIT();
+		HAL_UART_Receive_IT(me->uart, (uint8_t *) &user_input, 1U);
 		break;
 	default:
 		status = IGNORED_STATUS;
@@ -146,7 +146,7 @@ static State Game_startLevel(Game *const me, UserInputEvent const *const e) {
 		status = TRAN(&Game_playing);
 		break;
 	case USER_IN_SIG:
-		UART_StartReceiveIT();
+		HAL_UART_Receive_IT(me->uart, (uint8_t *) &user_input, 1U);
 		break;
 	default:
 		status = IGNORED_STATUS;
@@ -159,16 +159,16 @@ static State Game_playing(Game *const me, UserInputEvent const *const e) {
 	State status;
 	switch (((Event*) e)->sig) {
 	case USER_IN_SIG:
-		if (e->user_in == 'r') {
+		if (user_input == 'r') {
 			status = TRAN(&Game_startGame);
-		} else if (e->user_in == '1' || e->user_in == '2' || e->user_in == '3'
-				|| e->user_in == '5') {
-			me->curr_dir = e->user_in;
+		} else if (user_input == '1' || user_input == '2' || user_input == '3'
+				|| user_input == '5') {
+			me->curr_dir = user_input;
 			status = HANDLED_STATUS;
 		} else {
 			status = HANDLED_STATUS;
 		}
-		UART_StartReceiveIT();
+		HAL_UART_Receive_IT(me->uart, (uint8_t *) &user_input, 1U);
 		break;
 	case DIR_UPDATE_SIG:
 		switch (me->curr_dir) {
@@ -302,12 +302,12 @@ static State Game_win(Game *const me, UserInputEvent const *const e) {
 		break;
 	}
 	case USER_IN_SIG: {
-		if (e->user_in == 'r') {
+		if (user_input == 'r') {
 			status = TRAN(&Game_startGame);
 		} else {
 			status = HANDLED_STATUS;
 		}
-		UART_StartReceiveIT();
+		HAL_UART_Receive_IT(me->uart, (uint8_t *) &user_input, 1U);
 	}
 	}
 	return status;
@@ -330,12 +330,12 @@ static State Game_lose(Game *const me, UserInputEvent const *const e) {
 		break;
 	}
 	case USER_IN_SIG: {
-		if (e->user_in == 'r') {
+		if (user_input == 'r') {
 			status = TRAN(&Game_startGame);
 		} else {
 			status = HANDLED_STATUS;
 		}
-		UART_StartReceiveIT();
+		HAL_UART_Receive_IT(me->uart, (uint8_t *) &user_input, 1U);
 	}
 	}
 	return status;

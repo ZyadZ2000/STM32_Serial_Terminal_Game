@@ -55,7 +55,7 @@ void Active_start(Active *const me, uint8_t prio, Event **const queue_sto,
 		uint32_t *const stack_sto, uint32_t stack_size,
 		StaticTask_t *const task_buffer);
 void Active_post(Active *const me, Event const *const e);
-
+void Active_postFromISR(Active *const me, Event const *const e);
 /*------------------------Time Event Class------------------------------*/
 
 typedef struct {

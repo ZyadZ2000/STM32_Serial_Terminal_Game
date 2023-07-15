@@ -2,6 +2,7 @@
 #define GAME_H
 
 #include <stdbool.h>
+#include "stm32f4xx_hal.h"
 #include "freertos_ao.h"
 #include "signals.h"
 #include "events.h"
@@ -31,6 +32,7 @@ typedef struct {
 
 typedef struct {
 	Active super;
+	UART_HandleTypeDef * uart;
 	uint8_t curr_lvl; // current level
 	uint8_t max_lvl; // max level
 	uint16_t curr_score; // current score
@@ -52,6 +54,6 @@ typedef struct {
 	TimeEvent rm_s_pwr; //remove the effect of the slow enemies powerup
 } Game;
 
-void Game_ctor(Game *me);
+void Game_ctor(Game *me, UART_HandleTypeDef * uart);
 
 #endif

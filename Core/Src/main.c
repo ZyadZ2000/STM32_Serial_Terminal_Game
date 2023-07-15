@@ -44,23 +44,21 @@
 UART_HandleTypeDef huart1;
 
 /* USER CODE BEGIN PV */
-
-static int8_t uart_data;
 static UserInputEvent e = { { USER_IN_SIG }};
 
 /* GAME AO*/
-static StaticQueue_t static_game_queue;
-static StaticTask_t game_task;
+static StaticQueue_t game_queue_obj;
+static StaticTask_t game_task_obj;
 static StackType_t game_stack[200];
-static Event *game_queue_buffer[20];
+static Event *game_queue[20];
 static Game game;
 Active *AO_Game = &game.super;
 
 /* SCREENFRAME AO */
-static StaticQueue_t static_screen_frame_queue;
-static StaticTask_t screen_frame_task;
+static StaticQueue_t screen_frame_queue_obj;
+static StaticTask_t screen_frame_task_obj;
 static StackType_t screen_frame_stack[200];
-static Event *screen_frame_queue_buffer[20];
+static Event *screen_frame_queue[20];
 static ScreenFrame screen_frame;
 Active *AO_ScreenFrame = &screen_frame.super;
 
@@ -78,14 +76,10 @@ static void MX_USART1_UART_Init(void);
 /* USER CODE BEGIN 0 */
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 	if (huart->Instance == USART1) {
-		e.user_in = uart_data;
-		Active_post(AO_Game, (Event*) &e);
+		Active_postFromISR(AO_Game, (Event*) &e);
 	}
 }
 
-void UART_StartReceiveIT(void) {
-	HAL_UART_Receive_IT(&huart1, (uint8_t*) &uart_data, 1);
-}
 /* USER CODE END 0 */
 
 /**
@@ -117,13 +111,13 @@ int main(void) {
 	MX_GPIO_Init();
 	MX_USART1_UART_Init();
 	/* USER CODE BEGIN 2 */
-	Game_ctor(&game);
+	Game_ctor(&game, &huart1);
 	ScreenFrame_ctor(&screen_frame, &huart1);
-	Active_start(AO_Game, 1, game_queue_buffer, 20U, &static_game_queue,
-			game_stack, 200U, &game_task);
-	Active_start(AO_ScreenFrame, 2, screen_frame_queue_buffer, 20U,
-			&static_screen_frame_queue, screen_frame_stack, 200U,
-			&screen_frame_task);
+	Active_start(AO_Game, 1, game_queue, 20U, &game_queue_obj,
+			game_stack, 200U, &game_task_obj);
+	Active_start(AO_ScreenFrame, 2, screen_frame_queue, 20U,
+			&screen_frame_queue_obj, screen_frame_stack, 200U,
+			&screen_frame_task_obj);
 	/* USER CODE END 2 */
 
 	/* USER CODE BEGIN RTOS_MUTEX */

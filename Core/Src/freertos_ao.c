@@ -41,7 +41,7 @@ static void Active_eventLoop(void *pdata) {
 	/* event loop ("message pump") */
 	while (1) {
 		Event *e; /* pointer to event object ("message") */
-		BaseType_t receiveStatus; /* uC/OS-II error status */
+		BaseType_t receiveStatus;
 
 		/* wait for any event and receive it into object 'e' */
 		receiveStatus = xQueueReceive(me->queue, &e, portMAX_DELAY); /* BLOCKING! */
