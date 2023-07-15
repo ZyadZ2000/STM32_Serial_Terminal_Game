@@ -4,14 +4,21 @@
 
 #include "Game.h"
 
-extern Active *AO_ScreenFrame;
-extern Active *AO_Game;
+extern Active *AO_ScreenFrame; /* Extern the AO_ScreenFrame to post events to it */
+extern Active *AO_Game; /* Extern the AO_Game to post events to it */
 
-static char game_frame[FRAME_ROWS + 2][FRAME_COLS]; //The entire game frame.
+/* The entire game frame. added 2 for the row that displays the score and the row that displays the elapsed time */
+static char game_frame[FRAME_ROWS + 2][FRAME_COLS];
+
+/* Array to index the game speed for the current level */
 static const uint16_t game_speed_arr[MAX_NUM_LVLS] = { LVL1_SPEED, LVL2_SPEED,
 LVL3_SPEED, LVL4_SPEED, LVL5_SPEED };
-static const char pwr_smbl_arr[NUM_PWR_SMBL] = { 'S', 'D' };
+static const char pwr_smbl_arr[NUM_PWR_SMBL] = { 'S', 'D' }; /* Array of power-up symbols */
+
+/* screen frame event (will be overwritten with the pointer to the frame to send) */
 static ScreenFrameEvent se = { { SCREEN_FRAME_SIG } };
+
+/* constant events to post to the AO_Game */
 static const Event dir_e = { DIR_UPDATE_SIG };
 static const Event apple_e = { GEN_APPLE_SIG };
 static const Event enemy_e = { GEN_ENEMY_SIG };
@@ -19,7 +26,8 @@ static const Event power_e = { GEN_PWR_SIG };
 static const Event clr_e = { CLR_SMBL_SIG };
 static const Event d_to_e = { D_PWR_TIMEOUT_SIG };
 static const Event s_to_e = { S_PWR_TIMEOUT_SIG };
-static int8_t user_input;
+
+static int8_t user_input; /* Hold the received user input from UART */
 
 static State Game_initial(Game *const me, Event const *const e);
 static State Game_welcome(Game *const me, Event const *const e);
@@ -30,8 +38,8 @@ static State Game_win(Game *const me, Event const *const e);
 static State Game_lose(Game *const me, Event const *const e);
 static State Game_moveSnake(Game *const me, uint8_t row_dir, uint8_t col_dir);
 static uint32_t Game_randomGenerator(void);
-static void GameFrame_clearSymbols(void);
-static void GameFrame_init(Snake *snake);
+static void Game_clearFrameSymbols(void);
+static void Game_initFrame(Snake *snake);
 
 void Game_ctor(Game *me, UART_HandleTypeDef *uart) {
 	Active_ctor(&me->super, (StateHandler) &Game_initial);
@@ -81,7 +89,7 @@ static State Game_startGame(Game *const me, Event const *const e) {
 	switch (e->sig) {
 	case ENTRY_SIG:
 		//initialize the game frame and snake position
-		GameFrame_init(&me->snake);
+		Game_initFrame(&me->snake);
 		//initialize the game attributes
 		me->curr_lvl = 1;
 		me->curr_score = 0;
@@ -120,7 +128,7 @@ static State Game_startLevel(Game *const me, Event const *const e) {
 	case ENTRY_SIG:
 		if (me->curr_lvl > 1) {
 			taskENTER_CRITICAL();
-			GameFrame_clearSymbols();
+			Game_clearFrameSymbols();
 			taskEXIT_CRITICAL();
 		}
 		me->game_speed = game_speed_arr[me->curr_lvl - 1];
@@ -204,7 +212,7 @@ static State Game_playing(Game *const me, Event const *const e) {
 	}
 	case CLR_SMBL_SIG: {
 		taskENTER_CRITICAL();
-		GameFrame_clearSymbols();
+		Game_clearFrameSymbols();
 		taskEXIT_CRITICAL();
 		status = HANDLED_STATUS;
 		break;
@@ -224,7 +232,7 @@ static State Game_playing(Game *const me, Event const *const e) {
 	case TIMEOUT_SIG: {
 		me->time_count++;
 		/* Update the elapsed time every second */
-		if (me->time_count % SECOND_DIVIDE == 0U) {
+		if (me->time_count % TIMEUNIT_DIV == 0U) {
 			me->elapsed_time++;
 			char buffer[6];
 			itoa(me->elapsed_time, buffer, 10);
@@ -233,7 +241,7 @@ static State Game_playing(Game *const me, Event const *const e) {
 			taskEXIT_CRITICAL();
 		}
 		/* Update the level every 30 seconds */
-		if (me->time_count % (30 * SECOND_DIVIDE) == 0U) {
+		if (me->time_count % (30 * TIMEUNIT_DIV) == 0U) {
 			if (me->curr_lvl == me->max_lvl)
 				status = TRAN(&Game_win);
 			else {
@@ -259,11 +267,11 @@ static State Game_playing(Game *const me, Event const *const e) {
 				Active_post(AO_Game, &enemy_e);
 			}
 
-			if (me->time_count % (2 * SECOND_DIVIDE) == 0U) {
+			if (me->time_count % (2 * TIMEUNIT_DIV) == 0U) {
 				Active_post(AO_Game, &power_e);
 			}
 
-			if (me->time_count % (10 * SECOND_DIVIDE) == 0U) {
+			if (me->time_count % (10 * TIMEUNIT_DIV) == 0U) {
 				Active_post(AO_Game, &clr_e);
 			}
 
@@ -360,7 +368,7 @@ static uint32_t Game_randomGenerator(void) {
 	return w = w ^ (w >> 19) ^ t ^ (t >> 8);
 }
 
-static void GameFrame_clearSymbols(void) {
+static void Game_clearFrameSymbols(void) {
 	uint8_t i, j;
 	for (i = 0; i < FRAME_ROWS; i++) {
 		for (j = 0; j < FRAME_COLS; j++) {
@@ -372,7 +380,7 @@ static void GameFrame_clearSymbols(void) {
 	}
 }
 
-static void GameFrame_init(Snake *snake) {
+static void Game_initFrame(Snake *snake) {
 	uint8_t i, j;
 	for (i = 0; i < FRAME_ROWS; i++) {
 		for (j = 0; j < FRAME_COLS; j++) {
@@ -458,12 +466,12 @@ static State Game_moveSnake(Game *const me, uint8_t row_dir, uint8_t col_dir) {
 	case 'S':
 		if (!me->is_s_pwr) {
 			me->is_s_pwr = true;
-			me->s_pwr_time_count = me->time_count + 7 * SECOND_DIVIDE;
+			me->s_pwr_time_count = me->time_count + 7 * TIMEUNIT_DIV;
 		}
 		break;
 	case 'D':
 		me->d_pwr_factor++;
-		me->d_pwr_time_count = me->time_count + 5 * SECOND_DIVIDE;
+		me->d_pwr_time_count = me->time_count + 5 * TIMEUNIT_DIV;
 		break;
 	}
 	taskENTER_CRITICAL();

@@ -46,16 +46,16 @@ UART_HandleTypeDef huart1;
 /* USER CODE BEGIN PV */
 
 /* GAME AO*/
-static StackType_t game_stack[200];
-static Event *game_queue[15];
-static Game game;
-Active *AO_Game = &game.super;
+static StackType_t game_stack[200]; // thread stack
+static Event *game_queue[10]; // event queue
+static Game game; // The Game object
+Active *AO_Game = &game.super; // The Game active object
 
 /* SCREENFRAME AO */
-static StackType_t screen_frame_stack[200];
-static Event *screen_frame_queue[10];
-static ScreenFrame screen_frame;
-Active *AO_ScreenFrame = &screen_frame.super;
+static StackType_t screen_frame_stack[200]; // thread stack
+static Event *screen_frame_queue[10]; // event queue
+static ScreenFrame screen_frame; // The Screen Frame object
+Active *AO_ScreenFrame = &screen_frame.super; // The Screen Frame active object
 
 /* USER CODE END PV */
 
@@ -75,7 +75,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 	if (huart->Instance == USART1) {
 		static const Event e = { USER_IN_SIG };
 		BaseType_t xHigherPriorityTaskWoken;
-		Active_postFromISR(AO_Game, &e, &xHigherPriorityTaskWoken);
+		Active_postFromISR(AO_Game, &e, &xHigherPriorityTaskWoken); // send a USER_IN_SIG to the Game AO
 	}
 }
 
@@ -116,8 +116,10 @@ int main(void) {
 	MX_GPIO_Init();
 	MX_USART1_UART_Init();
 	/* USER CODE BEGIN 2 */
-	Game_ctor(&game, &huart1);
-	ScreenFrame_ctor(&screen_frame, &huart1);
+	Game_ctor(&game, &huart1); /* construct the Game */
+	ScreenFrame_ctor(&screen_frame, &huart1); /* construct the ScreenFrame */
+
+	/* Start the threads */
 	Active_start(AO_Game, 1, game_queue,
 			sizeof(game_queue) / sizeof(game_queue[0]), game_stack,
 			sizeof(game_stack) / sizeof(game_stack[0]));

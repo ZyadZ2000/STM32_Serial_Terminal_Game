@@ -41,8 +41,8 @@ static State ScreenFrame_wait4game(ScreenFrame *const me,
 
 static State ScreenFrame_sendFrame(ScreenFrame *const me,
 		ScreenFrameEvent const *const e) {
+	static const char clearScreen[] = "\x1b[2J\x1b[H";
 	State status;
-	char * clearScreen = "\x1b[2J\x1b[H";
 	switch (((Event*) e)->sig) {
 	case ENTRY_SIG:
 	case TIMEOUT_SIG: {

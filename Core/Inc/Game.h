@@ -7,9 +7,10 @@
 #include "signals.h"
 #include "events.h"
 
-#define SECOND_DIVIDE 20U
-#define TIMEOUT configTICK_RATE_HZ / SECOND_DIVIDE   // Every 50 ms
+#define TIMEUNIT_DIV 20U /* Equals 1 second / the game time unit */
+#define TIMEOUT configTICK_RATE_HZ / TIMEUNIT_DIV   /* Every 50 ms */
 
+/* game speed in different levels in terms of the number of time units */
 #define LVL1_SPEED 20U
 #define LVL2_SPEED 16U
 #define LVL3_SPEED 14U
@@ -18,10 +19,10 @@
 
 #define APPLE_SMBL 'A'
 #define ENEMY_SMBL 'E'
-#define MAX_NUM_LVLS 5U
-#define NUM_PWR_SMBL 2U
-#define FRAME_ROWS 50
-#define FRAME_COLS 70
+#define MAX_NUM_LVLS 5U /* Maximum number of levels of the game */
+#define NUM_PWR_SMBL 2U /* number of power-up symbols */
+#define FRAME_ROWS 50 /* Number of actual game frame rows inside the game_frame array */
+#define FRAME_COLS 70 /* Number of actual game frame cols inside the game_frame array */
 
 typedef struct {
 	uint8_t row;
@@ -36,22 +37,14 @@ typedef struct {
 typedef struct {
 	Active super;
 	TimeEvent update_time_te; // Time event to update the elapsed time
-//	TimeEvent update_level_te; // Time event to update the level
-//	TimeEvent update_dir_te; // Time event to update the direction
-//	TimeEvent gen_apple_te;  // Time event to generate an apple symbol
-//	TimeEvent gen_enemy_te; // Time event to generate an enemy symbol
-//	TimeEvent gen_pwr_te; // Time event to generate a powerup symbol
-//	TimeEvent clr_smbl_te; // Time event to clear all symbols
-//	TimeEvent rm_d_pwr; //remove the effect of the double score powerup
-//	TimeEvent rm_s_pwr; //remove the effect of the slow enemies powerup
-	UART_HandleTypeDef *uart;
+	UART_HandleTypeDef *uart; // uart handl for receiving user input
 	uint32_t curr_score; // current score
 	uint32_t highest_score; // highest score
 	uint32_t elapsed_time; // elapsed time since the start of the game
 	uint32_t time_count; //counter for each timeout
-	uint32_t d_pwr_time_count;
-	uint32_t s_pwr_time_count;
-	Snake snake;
+	uint32_t d_pwr_time_count; // time count for the timeout of a "double" power-up
+	uint32_t s_pwr_time_count; // time count for the timeout of a "slow enemies" power-up
+	Snake snake; // The snake object
 	uint16_t game_speed;
 	uint8_t curr_lvl; // current level
 	uint8_t max_lvl; // max level
@@ -60,6 +53,7 @@ typedef struct {
 	bool is_s_pwr; // boolean for the slow down powerup
 } Game;
 
+/* Game constructor */
 void Game_ctor(Game *me, UART_HandleTypeDef *uart);
 
 #endif
