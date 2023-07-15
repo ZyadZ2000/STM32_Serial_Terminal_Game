@@ -44,17 +44,16 @@
 UART_HandleTypeDef huart1;
 
 /* USER CODE BEGIN PV */
-static const Event e = { USER_IN_SIG };
 
 /* GAME AO*/
 static StackType_t game_stack[200];
-static Event *game_queue[20];
+static Event *game_queue[15];
 static Game game;
 Active *AO_Game = &game.super;
 
 /* SCREENFRAME AO */
 static StackType_t screen_frame_stack[200];
-static Event *screen_frame_queue[20];
+static Event *screen_frame_queue[10];
 static ScreenFrame screen_frame;
 Active *AO_ScreenFrame = &screen_frame.super;
 
@@ -74,9 +73,16 @@ static void MX_USART1_UART_Init(void);
 /* Executed when the UART completes a receive */
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 	if (huart->Instance == USART1) {
+		static const Event e = { USER_IN_SIG };
 		BaseType_t xHigherPriorityTaskWoken;
 		Active_postFromISR(AO_Game, &e, &xHigherPriorityTaskWoken);
 	}
+}
+
+/* Enable the Tick Hook in FreeRTOSConfig to use time events*/
+void vApplicationTickHook(void) {
+	BaseType_t xHigherPriorityTaskWoken;
+	TimeEvent_tickFromISR(&xHigherPriorityTaskWoken);
 }
 
 /* USER CODE END 0 */

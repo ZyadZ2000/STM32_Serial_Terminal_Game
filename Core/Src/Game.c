@@ -20,15 +20,10 @@ static State Game_startLevel(Game *const me, Event const *const e);
 static State Game_playing(Game *const me, Event const *const e);
 static State Game_win(Game *const me, Event const *const e);
 static State Game_lose(Game *const me, Event const *const e);
-
+static State Game_moveSnake(Game *const me, uint8_t row_dir, uint8_t col_dir);
 static uint32_t Game_randomGenerator(void);
 static void GameFrame_clearSymbols(void);
-static void GameFrame_init(void);
-
-static State Game_moveSnakeLeft(Game *const me);
-static State Game_moveSnakeRight(Game *const me);
-static State Game_moveSnakeUp(Game *const me);
-static State Game_moveSnakeDown(Game *const me);
+static void GameFrame_init(Snake *snake);
 
 void Game_ctor(Game *me, UART_HandleTypeDef *uart) {
 	Active_ctor(&me->super, (StateHandler) &Game_initial);
@@ -51,7 +46,7 @@ static State Game_initial(Game *const me, Event const *const e) {
 static State Game_welcome(Game *const me, Event const *const e) {
 	State status;
 	static const char welcome[] =
-			"Welcome to Snake game\r\ns:to start game\r\nr:to reset game\r\n5 to move the snake upwards,\r\n2 for downwards,\r\n1 for left,\r\n3 for right\r\nYou lose if you eat an 'E' or eat yourself\r\n";
+			"Welcome to Snake game\r\ns:to start game\r\nr:to reset game\r\n5 to move the snake up,\r\n2 for down,\r\n1 for left,\r\n3 for right\r\nYou lose if you hit the wall, eat an 'E', or eat yourself\r\n";
 	switch (e->sig) {
 	case ENTRY_SIG: {
 		//send ScreenFrame AO an event with a pointer to the welcome array
@@ -64,7 +59,7 @@ static State Game_welcome(Game *const me, Event const *const e) {
 	}
 	case USER_IN_SIG: {
 		if (user_input == 's') {
-			me->max_lvl = 5;
+			me->max_lvl = MAX_NUM_LVLS;
 			me->highest_score = 0;
 			status = TRAN(&Game_startGame);
 		} else {
@@ -85,16 +80,12 @@ static State Game_startGame(Game *const me, Event const *const e) {
 	State status;
 	switch (e->sig) {
 	case ENTRY_SIG:
-		//initialize the game frame
-		GameFrame_init();
+		//initialize the game frame and snake position
+		GameFrame_init(&me->snake);
 		//initialize the game attributes
 		me->curr_lvl = 1;
 		me->curr_score = 0;
 		me->elapsed_time = 0;
-		me->snake.head.row = 2;
-		me->snake.head.col = 6;
-		me->snake.tail.row = 2;
-		me->snake.tail.col = 2;
 		me->curr_dir = 0;
 		me->d_pwr_factor = 1;
 		me->is_s_pwr = false;
@@ -146,9 +137,6 @@ static State Game_startLevel(Game *const me, Event const *const e) {
 		//clear the frame of all the symbols
 		status = TRAN(&Game_playing);
 		break;
-	case USER_IN_SIG:
-		HAL_UART_Receive_IT(me->uart, (uint8_t*) &user_input, 1U);
-		break;
 	default:
 		status = IGNORED_STATUS;
 		break;
@@ -165,25 +153,23 @@ static State Game_playing(Game *const me, Event const *const e) {
 		} else if (user_input == '1' || user_input == '2' || user_input == '3'
 				|| user_input == '5') {
 			me->curr_dir = user_input;
-			status = HANDLED_STATUS;
-		} else {
-			status = HANDLED_STATUS;
 		}
+		status = HANDLED_STATUS;
 		HAL_UART_Receive_IT(me->uart, (uint8_t*) &user_input, 1U);
 		break;
 	case DIR_UPDATE_SIG:
 		switch (me->curr_dir) {
 		case '1':
-			status = Game_moveSnakeLeft(me);
+			status = Game_moveSnake(me, 0, -1);
 			break;
 		case '2':
-			status = Game_moveSnakeDown(me);
+			status = Game_moveSnake(me, 1, 0);
 			break;
 		case '3':
-			status = Game_moveSnakeRight(me);
+			status = Game_moveSnake(me, 0, 1);
 			break;
 		case '5':
-			status = Game_moveSnakeUp(me);
+			status = Game_moveSnake(me, -1, 0);
 			break;
 		}
 		break;
@@ -214,7 +200,7 @@ static State Game_playing(Game *const me, Event const *const e) {
 		break;
 	}
 	case GEN_PWR_SIG: {
-		uint8_t pwr = pwr_smbl_arr[Game_randomGenerator() % 2];
+		uint8_t pwr = pwr_smbl_arr[Game_randomGenerator() % NUM_PWR_SMBL];
 		uint8_t row;
 		uint8_t col;
 		do {
@@ -257,7 +243,7 @@ static State Game_playing(Game *const me, Event const *const e) {
 	}
 	case ONE_SEC_SIG: {
 		me->elapsed_time++;
-		char buffer[10];
+		char buffer[6];
 		itoa(me->elapsed_time, buffer, 10);
 		taskENTER_CRITICAL();
 		strcpy(&game_frame[FRAME_ROWS + 1][6], buffer);
@@ -294,10 +280,10 @@ static State Game_win(Game *const me, Event const *const e) {
 		if (me->curr_score >= me->highest_score)
 			me->highest_score = me->curr_score;
 		sprintf(win_frame,
-				"YOU WIN!!!\r\nSCORE: %d\r\nHEIGHEST SCORE: %d\r\npress 'r' to restart\r\n",
+				"YOU WIN!!!\r\nSCORE: %lu\r\nHEIGHEST SCORE: %lu\r\npress 'r' to restart\r\n",
 				me->curr_score, me->highest_score);
 		se.frame = win_frame;
-		se.frame_len = 80;
+		se.frame_len = strlen(win_frame);
 		Active_post(AO_ScreenFrame, (Event*) &se);
 		status = HANDLED_STATUS;
 		break;
@@ -322,10 +308,10 @@ static State Game_lose(Game *const me, Event const *const e) {
 		if (me->curr_score >= me->highest_score)
 			me->highest_score = me->curr_score;
 		sprintf(lose_frame,
-				"GAMEOVER!!!\r\nSCORE: %d\r\nHEIGHEST SCORE: %d\r\npress 'r' to restart\r\n",
+				"GAMEOVER!!!\r\nSCORE: %lu\r\nHEIGHEST SCORE: %lu\r\npress 'r' to restart\r\n",
 				me->curr_score, me->highest_score);
 		se.frame = lose_frame;
-		se.frame_len = 81;
+		se.frame_len = strlen(lose_frame);
 		Active_post(AO_ScreenFrame, (Event*) &se);
 		status = HANDLED_STATUS;
 		break;
@@ -364,7 +350,7 @@ static void GameFrame_clearSymbols(void) {
 	}
 }
 
-static void GameFrame_init(void) {
+static void GameFrame_init(Snake *snake) {
 	uint8_t i, j;
 	for (i = 0; i < FRAME_ROWS; i++) {
 		for (j = 0; j < FRAME_COLS; j++) {
@@ -417,50 +403,35 @@ static void GameFrame_init(void) {
 		}
 	}
 
-	for (i = 0; i < 5 - 1; i++) {
-		game_frame[2][i + 2] = '*';
+	for (i = 2; i < 6; i++) {
+		game_frame[2][i] = '*';
 	}
-	game_frame[2][5 + 1] = '&';
+	game_frame[2][6] = '&';
+	snake->head.row = 2;
+	snake->head.col = 6;
+	snake->tail.row = 2;
+	snake->tail.col = 2;
 }
 
-static State Game_moveSnakeLeft(Game *const me) {
-	switch (game_frame[me->snake.head.row][me->snake.head.col - 1]) {
+static State Game_moveSnake(Game *const me, uint8_t row_dir, uint8_t col_dir) {
+	switch (game_frame[me->snake.head.row + row_dir][me->snake.head.col
+			+ col_dir]) {
 	case '#':
 	case 'E':
 	case '*':
 		return TRAN(&Game_lose);
 	case 'A':
-		switch (game_frame[me->snake.head.row][me->snake.head.col - 2]) {
-		case '#':
-		case 'E':
-		case '*':
-			return TRAN(&Game_lose);
-		case 'S':
-			if (!me->is_s_pwr) {
-				me->is_s_pwr = true;
-				TimeEvent_disarm(&me->gen_enemy_te);
-				TimeEvent_arm(&me->gen_enemy_te,
-						(uint32_t) (me->game_speed * 5),
-						(uint32_t) (me->game_speed * 5));
-				TimeEvent_arm(&me->rm_s_pwr, configTICK_RATE_HZ * 7U, 0U);
-			}
-			break;
-		case 'D':
-			me->d_pwr_factor++;
-			TimeEvent_disarm(&me->rm_d_pwr);
-			TimeEvent_arm(&me->rm_d_pwr, configTICK_RATE_HZ * 5U, 0U);
-			break;
-		}
 		me->curr_score += 1 * me->d_pwr_factor;
 		char buffer[6];
 		itoa(me->curr_score, buffer, 10);
 		taskENTER_CRITICAL();
 		game_frame[me->snake.head.row][me->snake.head.col] = '*';
-		game_frame[me->snake.head.row][me->snake.head.col - 1] = '*';
-		game_frame[me->snake.head.row][me->snake.head.col - 2] = '&';
+		game_frame[me->snake.head.row + row_dir][me->snake.head.col + col_dir] =
+				'&';
 		strcpy(&game_frame[FRAME_ROWS][7], buffer);
 		taskEXIT_CRITICAL();
-		me->snake.head.col -= 2;
+		me->snake.head.row += row_dir;
+		me->snake.head.col += col_dir;
 		return HANDLED_STATUS;
 	case 'S':
 		if (!me->is_s_pwr) {
@@ -479,226 +450,12 @@ static State Game_moveSnakeLeft(Game *const me) {
 	}
 	taskENTER_CRITICAL();
 	game_frame[me->snake.head.row][me->snake.head.col] = '*';
-	game_frame[me->snake.head.row][me->snake.head.col - 1] = '&';
+	game_frame[me->snake.head.row + row_dir][me->snake.head.col + col_dir] =
+			'&';
 	game_frame[me->snake.tail.row][me->snake.tail.col] = ' ';
 	taskEXIT_CRITICAL();
-	me->snake.head.col--;
-	if (game_frame[me->snake.tail.row][me->snake.tail.col + 1] == '*')
-		me->snake.tail.col++;
-	else if (game_frame[me->snake.tail.row][me->snake.tail.col - 1] == '*') {
-		me->snake.tail.col--;
-	} else if (game_frame[me->snake.tail.row + 1][me->snake.tail.col] == '*') {
-		me->snake.tail.row++;
-	} else {
-		me->snake.tail.row--;
-	}
-	return HANDLED_STATUS;
-}
-
-static State Game_moveSnakeRight(Game *const me) {
-	switch (game_frame[me->snake.head.row][me->snake.head.col + 1]) {
-	case '#':
-	case 'E':
-	case '*':
-		return TRAN(&Game_lose);
-	case 'A':
-		switch (game_frame[me->snake.head.row][me->snake.head.col + 2]) {
-		case '#':
-		case 'E':
-		case '*':
-			return TRAN(&Game_lose);
-		case 'S':
-			if (!me->is_s_pwr) {
-				me->is_s_pwr = true;
-				TimeEvent_disarm(&me->gen_enemy_te);
-				TimeEvent_arm(&me->gen_enemy_te,
-						(uint32_t) (me->game_speed * 5),
-						(uint32_t) (me->game_speed * 5));
-				TimeEvent_arm(&me->rm_s_pwr, configTICK_RATE_HZ * 7U, 0U);
-			}
-			break;
-		case 'D':
-			me->d_pwr_factor++;
-			TimeEvent_disarm(&me->rm_d_pwr);
-			TimeEvent_arm(&me->rm_d_pwr, configTICK_RATE_HZ * 5U, 0U);
-			break;
-		}
-		me->curr_score += 1 * me->d_pwr_factor;
-		char buffer[6];
-		itoa(me->curr_score, buffer, 10);
-		taskENTER_CRITICAL();
-		game_frame[me->snake.head.row][me->snake.head.col] = '*';
-		game_frame[me->snake.head.row][me->snake.head.col + 1] = '*';
-		game_frame[me->snake.head.row][me->snake.head.col + 2] = '&';
-		strcpy(&game_frame[FRAME_ROWS][7], buffer);
-		taskEXIT_CRITICAL();
-		me->snake.head.col += 2;
-		return HANDLED_STATUS;
-	case 'S':
-		if (!me->is_s_pwr) {
-			me->is_s_pwr = true;
-			TimeEvent_disarm(&me->gen_enemy_te);
-			TimeEvent_arm(&me->gen_enemy_te, (uint32_t) (me->game_speed * 5),
-					(uint32_t) (me->game_speed * 5));
-			TimeEvent_arm(&me->rm_s_pwr, configTICK_RATE_HZ * 7U, 0U);
-		}
-		break;
-	case 'D':
-		me->d_pwr_factor++;
-		TimeEvent_disarm(&me->rm_d_pwr);
-		TimeEvent_arm(&me->rm_d_pwr, configTICK_RATE_HZ * 5U, 0U);
-		break;
-	}
-	taskENTER_CRITICAL();
-	game_frame[me->snake.head.row][me->snake.head.col] = '*';
-	game_frame[me->snake.head.row][me->snake.head.col + 1] = '&';
-	game_frame[me->snake.tail.row][me->snake.tail.col] = ' ';
-	taskEXIT_CRITICAL();
-	me->snake.head.col++;
-	if (game_frame[me->snake.tail.row][me->snake.tail.col + 1] == '*')
-		me->snake.tail.col++;
-	else if (game_frame[me->snake.tail.row][me->snake.tail.col - 1] == '*') {
-		me->snake.tail.col--;
-	} else if (game_frame[me->snake.tail.row + 1][me->snake.tail.col] == '*') {
-		me->snake.tail.row++;
-	} else {
-		me->snake.tail.row--;
-	}
-	return HANDLED_STATUS;
-}
-
-static State Game_moveSnakeUp(Game *const me) {
-	switch (game_frame[me->snake.head.row - 1][me->snake.head.col]) {
-	case '#':
-	case 'E':
-	case '*':
-		return TRAN(&Game_lose);
-	case 'A':
-		switch (game_frame[me->snake.head.row - 1][me->snake.head.col]) {
-		case '#':
-		case 'E':
-		case '*':
-			return TRAN(&Game_lose);
-		case 'S':
-			if (!me->is_s_pwr) {
-				me->is_s_pwr = true;
-				TimeEvent_disarm(&me->gen_enemy_te);
-				TimeEvent_arm(&me->gen_enemy_te,
-						(uint32_t) (me->game_speed * 5),
-						(uint32_t) (me->game_speed * 5));
-				TimeEvent_arm(&me->rm_s_pwr, configTICK_RATE_HZ * 7U, 0U);
-			}
-			break;
-		case 'D':
-			me->d_pwr_factor++;
-			TimeEvent_disarm(&me->rm_d_pwr);
-			TimeEvent_arm(&me->rm_d_pwr, configTICK_RATE_HZ * 5U, 0U);
-			break;
-		}
-		me->curr_score += 1 * me->d_pwr_factor;
-		char buffer[6];
-		itoa(me->curr_score, buffer, 10);
-		taskENTER_CRITICAL();
-		game_frame[me->snake.head.row][me->snake.head.col] = '*';
-		game_frame[me->snake.head.row - 1][me->snake.head.col] = '*';
-		game_frame[me->snake.head.row - 2][me->snake.head.col] = '&';
-		strcpy(&game_frame[FRAME_ROWS][7], buffer);
-		taskEXIT_CRITICAL();
-		me->snake.head.row -= 2;
-		return HANDLED_STATUS;
-	case 'S':
-		if (!me->is_s_pwr) {
-			me->is_s_pwr = true;
-			TimeEvent_disarm(&me->gen_enemy_te);
-			TimeEvent_arm(&me->gen_enemy_te, (uint32_t) (me->game_speed * 5),
-					(uint32_t) (me->game_speed * 5));
-			TimeEvent_arm(&me->rm_s_pwr, configTICK_RATE_HZ * 7U, 0U);
-		}
-		break;
-	case 'D':
-		me->d_pwr_factor++;
-		TimeEvent_disarm(&me->rm_d_pwr);
-		TimeEvent_arm(&me->rm_d_pwr, configTICK_RATE_HZ * 5U, 0U);
-		break;
-	}
-	taskENTER_CRITICAL();
-	game_frame[me->snake.head.row][me->snake.head.col] = '*';
-	game_frame[me->snake.head.row - 1][me->snake.head.col] = '&';
-	game_frame[me->snake.tail.row][me->snake.tail.col] = ' ';
-	taskEXIT_CRITICAL();
-	me->snake.head.row--;
-	if (game_frame[me->snake.tail.row][me->snake.tail.col + 1] == '*')
-		me->snake.tail.col++;
-	else if (game_frame[me->snake.tail.row][me->snake.tail.col - 1] == '*') {
-		me->snake.tail.col--;
-	} else if (game_frame[me->snake.tail.row + 1][me->snake.tail.col] == '*') {
-		me->snake.tail.row++;
-	} else {
-		me->snake.tail.row--;
-	}
-	return HANDLED_STATUS;
-}
-
-static State Game_moveSnakeDown(Game *const me) {
-	switch (game_frame[me->snake.head.row + 1][me->snake.head.col]) {
-	case '#':
-	case 'E':
-	case '*':
-		return TRAN(&Game_lose);
-	case 'A':
-		switch (game_frame[me->snake.head.row + 1][me->snake.head.col]) {
-		case '#':
-		case 'E':
-		case '*':
-			return TRAN(&Game_lose);
-		case 'S':
-			if (!me->is_s_pwr) {
-				me->is_s_pwr = true;
-				TimeEvent_disarm(&me->gen_enemy_te);
-				TimeEvent_arm(&me->gen_enemy_te,
-						(uint32_t) (me->game_speed * 5),
-						(uint32_t) (me->game_speed * 5));
-				TimeEvent_arm(&me->rm_s_pwr, configTICK_RATE_HZ * 7U, 0U);
-			}
-			break;
-		case 'D':
-			me->d_pwr_factor++;
-			TimeEvent_disarm(&me->rm_d_pwr);
-			TimeEvent_arm(&me->rm_d_pwr, configTICK_RATE_HZ * 5U, 0U);
-			break;
-		}
-		me->curr_score += 1 * me->d_pwr_factor;
-		char buffer[6];
-		itoa(me->curr_score, buffer, 10);
-		taskENTER_CRITICAL();
-		game_frame[me->snake.head.row][me->snake.head.col] = '*';
-		game_frame[me->snake.head.row + 1][me->snake.head.col] = '*';
-		game_frame[me->snake.head.row + 2][me->snake.head.col] = '&';
-		strcpy(&game_frame[FRAME_ROWS][7], buffer);
-		taskEXIT_CRITICAL();
-		me->snake.head.row -= 2;
-		return HANDLED_STATUS;
-	case 'S':
-		if (!me->is_s_pwr) {
-			me->is_s_pwr = true;
-			TimeEvent_disarm(&me->gen_enemy_te);
-			TimeEvent_arm(&me->gen_enemy_te, (uint32_t) (me->game_speed * 5),
-					(uint32_t) (me->game_speed * 5));
-			TimeEvent_arm(&me->rm_s_pwr, configTICK_RATE_HZ * 7U, 0U);
-		}
-		break;
-	case 'D':
-		me->d_pwr_factor++;
-		TimeEvent_disarm(&me->rm_d_pwr);
-		TimeEvent_arm(&me->rm_d_pwr, configTICK_RATE_HZ * 5U, 0U);
-		break;
-	}
-	taskENTER_CRITICAL();
-	game_frame[me->snake.head.row][me->snake.head.col] = '*';
-	game_frame[me->snake.head.row + 1][me->snake.head.col] = '&';
-	game_frame[me->snake.tail.row][me->snake.tail.col] = ' ';
-	taskEXIT_CRITICAL();
-	me->snake.head.row++;
+	me->snake.head.row += row_dir;
+	me->snake.head.col += col_dir;
 	if (game_frame[me->snake.tail.row][me->snake.tail.col + 1] == '*')
 		me->snake.tail.col++;
 	else if (game_frame[me->snake.tail.row][me->snake.tail.col - 1] == '*') {

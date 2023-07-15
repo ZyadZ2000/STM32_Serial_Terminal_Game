@@ -119,9 +119,3 @@ void TimeEvent_tickFromISR(BaseType_t *xHigherPriorityTaskWoken) {
 	}
 }
 
-/* Enable the Tick Hook in FreeRTOSConfig to use time events*/
-void vApplicationTickHook(void) {
-	BaseType_t xHigherPriorityTaskWoken;
-	TimeEvent_tickFromISR(&xHigherPriorityTaskWoken);
-}
-
