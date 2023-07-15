@@ -1,7 +1,4 @@
-#include <assert.h>
 #include "freertos_ao.h"
-
-/*---------------------------------------------------------------------------*/
 
 static Event const entryEvt = { ENTRY_SIG };
 static Event const exitEvt = { EXIT_SIG };
@@ -11,7 +8,7 @@ void Fsm_ctor(Fsm *const me, StateHandler initial) {
 }
 
 void Fsm_init(Fsm *const me, Event const *const e) {
-	assert(me->state != (StateHandler )0);
+	configASSERT(me->state != (StateHandler )0);
 	(*me->state)(me, e);
 	(*me->state)(me, &entryEvt);
 }
@@ -20,7 +17,7 @@ void Fsm_dispatch(Fsm *const me, Event const *const e) {
 	State status;
 	StateHandler prev_state = me->state; /* save for later */
 
-	assert(me->state != (StateHandler) 0);
+	configASSERT(me->state != (StateHandler ) 0);
 	status = (*me->state)(me, e);
 
 	if (status == TRAN_STATUS) { /* transition taken? */
@@ -29,13 +26,12 @@ void Fsm_dispatch(Fsm *const me, Event const *const e) {
 	}
 }
 
-/*..........................................................................*/
+
 void Active_ctor(Active *const me, StateHandler initial) {
 	Fsm_ctor(&me->super, initial);
 }
 
-/*..........................................................................*/
-/* Thread function for all Active Objects (uC/OS-II task signature) */
+
 static void Active_eventLoop(void *pdata) {
 	Active *me = (Active*) pdata; /* the AO instance "me" */
 
@@ -49,46 +45,47 @@ static void Active_eventLoop(void *pdata) {
 
 		/* wait for any event and receive it into object 'e' */
 		receiveStatus = xQueueReceive(me->queue, &e, portMAX_DELAY); /* BLOCKING! */
-		assert(receiveStatus == pdTRUE);
+		configASSERT(receiveStatus == pdTRUE);
 
 		/* dispatch event to the active object 'me' */
-		Fsm_dispatch(&me->super, e); /* NO BLOCKING! */
+		Fsm_dispatch(&me->super, e);
 
 	}
 }
 
-/*..........................................................................*/
-void Active_start(Active *const me, uint8_t priority, Event **const queueSto,
-		uint32_t queueLen, StaticQueue_t *const queueBuffer,
-		uint32_t *const stackSto, uint32_t stackSize,
-		StaticTask_t *const taskTCBBuffer) {
 
-	assert(me && (0 < priority) && (priority < configMAX_PRIORITIES));
-	me->queue = xQueueCreateStatic(queueLen, sizeof(Event*),
-			(uint8_t* ) queueSto, queueBuffer);
-	assert(me->queue != NULL);
+void Active_start(Active *const me, uint8_t prio, Event **const queue_sto,
+		uint32_t queue_len, StaticQueue_t *const queue_buffer,
+		uint32_t *const stack_sto, uint32_t stack_size,
+		StaticTask_t *const task_buffer) {
 
-	me->thread = xTaskCreateStatic(&Active_eventLoop, NULL, stackSize, me,
-			priority, stackSto, taskTCBBuffer);
-	assert(me->thread != NULL);
+	configASSERT(me && (0 < prio) && (prio < configMAX_PRIORITIES));
+	me->queue = xQueueCreateStatic(queue_len, sizeof(Event*),
+			(uint8_t* ) queue_sto, queue_buffer);
+	configASSERT(me->queue != NULL);
+
+	me->thread = xTaskCreateStatic(&Active_eventLoop, NULL, stack_size,
+			(void*) me, prio, stack_sto, task_buffer);
+	configASSERT(me->thread != NULL);
 }
 
-/*..........................................................................*/
+
 void Active_post(Active *const me, Event const *const e) {
 	xQueueSendToBack(me->queue, (void* ) &e, 0U);
 }
 
-/*--------------------------------------------------------------------------*/
+void Active_postFromISR(Active *const me, Event const *const e) {
+	BaseType_t xHigherPriorityTaskWoken;
+	xQueueSendToBackFromISR(me->queue, (void* ) &e, &xHigherPriorityTaskWoken);
+}
+
+
 /* Time Event services... */
 
 static TimeEvent *l_tevt[10]; /* all TimeEvents in the application */
 static uint_fast8_t l_tevtNum; /* current number of TimeEvents */
 
-/*..........................................................................*/
 void TimeEvent_ctor(TimeEvent *const me, Signal sig, Active *act) {
-	/* no critical section because it is presumed that all TimeEvents
-	 * are created *before* multitasking has started.
-	 */
 	me->super.sig = sig;
 	me->act = act;
 	me->timeout = 0U;
@@ -96,13 +93,13 @@ void TimeEvent_ctor(TimeEvent *const me, Signal sig, Active *act) {
 
 	/* register one more TimeEvent instance */
 	taskENTER_CRITICAL();
-	assert(l_tevtNum < sizeof(l_tevt)/sizeof(l_tevt[0]));
+	configASSERT(l_tevtNum < sizeof(l_tevt) / sizeof(l_tevt[0]));
 	l_tevt[l_tevtNum] = me;
 	++l_tevtNum;
 	taskEXIT_CRITICAL();
 }
 
-/*..........................................................................*/
+
 void TimeEvent_arm(TimeEvent *const me, uint32_t timeout, uint32_t interval) {
 	taskENTER_CRITICAL();
 	me->timeout = timeout;
@@ -110,24 +107,29 @@ void TimeEvent_arm(TimeEvent *const me, uint32_t timeout, uint32_t interval) {
 	taskEXIT_CRITICAL();
 }
 
-/*..........................................................................*/
+
 void TimeEvent_disarm(TimeEvent *const me) {
 	taskENTER_CRITICAL();
 	me->timeout = 0U;
 	taskEXIT_CRITICAL();
 }
 
-/*..........................................................................*/
+
 void TimeEvent_tick(void) {
 	uint_fast8_t i;
 	for (i = 0U; i < l_tevtNum; ++i) {
 		TimeEvent *const t = l_tevt[i];
 		if (t->timeout > 0U) { /* is this TimeEvent armed? */
 			if (--t->timeout == 0U) { /* is it expiring now? */
-				Active_post(t->act, &t->super);
+				Active_postFromISR(t->act, &t->super);
 				t->timeout = t->interval; /* rearm or disarm (one-shot) */
 			}
 		}
 	}
+}
+
+/* Enable the Tick Hook in FreeRTOSConfig to use time events*/
+void vApplicationTickHook( void ) {
+	TimeEvent_tick();
 }
 

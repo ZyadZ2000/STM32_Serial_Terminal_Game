@@ -7,26 +7,21 @@
 #include "task.h"
 #include "queue.h"
 
-/*---------------------------------------------------------------------------*/
-/* Event Class */
+/*------------------------Event Class------------------------------*/
 
 typedef uint16_t Signal; /* event signal */
 
 enum ReservedSignals {
-	INIT_SIG, /* dispatched to AO before entering event-loop */
-	ENTRY_SIG, /* for triggering the entry action in a state */
-	EXIT_SIG, /* for triggering the exit action from a state */
-	USER_SIG /* first signal available to the users */
+	INIT_SIG, ENTRY_SIG, EXIT_SIG, USER_SIG /* first signal available to the users */
 };
 
 typedef struct {
 	Signal sig; /* event signal */
-/* event parameters added in subclasses of Event */
 } Event;
 
-/*---------------------------------------------------------------------------*/
-/* Finite State Machine Class*/
-typedef struct Fsm Fsm; /* forward declaration */
+/*------------------------Finite State Machine Class------------------------------*/
+
+typedef struct Fsm Fsm;
 
 typedef enum {
 	TRAN_STATUS, HANDLED_STATUS, IGNORED_STATUS, INIT_STATUS
@@ -37,36 +32,31 @@ typedef State (*StateHandler)(Fsm *const me, Event const *const e);
 #define TRAN(target_) (((Fsm *)me)->state = (StateHandler)(target_), TRAN_STATUS)
 
 struct Fsm {
-	StateHandler state; /* the "state variable" */
+	StateHandler state;
 };
 
 void Fsm_ctor(Fsm *const me, StateHandler initial);
 void Fsm_init(Fsm *const me, Event const *const e);
 void Fsm_dispatch(Fsm *const me, Event const *const e);
 
-/*---------------------------------------------------------------------------*/
-/* Active Object Class */
+/*------------------------Active Object Class------------------------------*/
 
-typedef struct Active Active; /* forward declaration */
-
+typedef struct Active Active;
 struct Active {
 	Fsm super; /* inherit Fsm */
 
-	TaskHandle_t thread; /* private thread (the unique uC/OS-II task priority) */
+	TaskHandle_t thread; /* private thread */
 	QueueHandle_t queue; /* private message queue */
-
-/* active object data added in subclasses of Active */
 };
 
 void Active_ctor(Active *const me, StateHandler initial);
-void Active_start(Active *const me, uint8_t priority, Event **const queueSto,
-		uint32_t queueLen, StaticQueue_t *const queueBuffer,
-		uint32_t *const stackSto, uint32_t stackSize,
-		StaticTask_t *const taskTCBBuffer);
+void Active_start(Active *const me, uint8_t prio, Event **const queue_sto,
+		uint32_t queue_len, StaticQueue_t *const queue_buffer,
+		uint32_t *const stack_sto, uint32_t stack_size,
+		StaticTask_t *const task_buffer);
 void Active_post(Active *const me, Event const *const e);
 
-/*---------------------------------------------------------------------------*/
-/* Time Event Class */
+/*------------------------Time Event Class------------------------------*/
 
 typedef struct {
 	Event super; /* inherit Event */
@@ -79,7 +69,7 @@ void TimeEvent_ctor(TimeEvent *const me, Signal sig, Active *act);
 void TimeEvent_arm(TimeEvent *const me, uint32_t timeout, uint32_t interval);
 void TimeEvent_disarm(TimeEvent *const me);
 
-/* static (i.e., class-wide) operation */
+/* static method: call this function in each RTOS tick */
 void TimeEvent_tick(void);
 
 #endif
