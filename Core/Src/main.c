@@ -74,6 +74,8 @@ static void MX_USART1_UART_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+
+/* Executed when the UART completes a receive */
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 	if (huart->Instance == USART1) {
 		Active_postFromISR(AO_Game, &e);
@@ -113,8 +115,8 @@ int main(void) {
 	/* USER CODE BEGIN 2 */
 	Game_ctor(&game, &huart1);
 	ScreenFrame_ctor(&screen_frame, &huart1);
-	Active_start(AO_Game, 1, game_queue, 20U, &game_queue_obj,
-			game_stack, 200U, &game_task_obj);
+	Active_start(AO_Game, 1, game_queue, 20U, &game_queue_obj, game_stack, 200U,
+			&game_task_obj);
 	Active_start(AO_ScreenFrame, 2, screen_frame_queue, 20U,
 			&screen_frame_queue_obj, screen_frame_stack, 200U,
 			&screen_frame_task_obj);
