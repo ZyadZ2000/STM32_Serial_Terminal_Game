@@ -46,16 +46,18 @@ struct Active {
 	Fsm super; /* inherit Fsm */
 
 	TaskHandle_t thread; /* private thread */
+	StaticTask_t thread_cb;
+
 	QueueHandle_t queue; /* private message queue */
+	StaticQueue_t queue_cb;
 };
 
 void Active_ctor(Active *const me, StateHandler initial);
 void Active_start(Active *const me, uint8_t prio, Event **const queue_sto,
-		uint32_t queue_len, StaticQueue_t *const queue_buffer,
-		uint32_t *const stack_sto, uint32_t stack_size,
-		StaticTask_t *const task_buffer);
+		uint32_t queue_len, uint32_t *const stack_sto, uint32_t stack_size);
 void Active_post(Active *const me, Event const *const e);
-void Active_postFromISR(Active *const me, Event const *const e);
+void Active_postFromISR(Active *const me, Event const *const e,
+		BaseType_t *xHigherPriorityTaskWoken);
 /*------------------------Time Event Class------------------------------*/
 
 typedef struct {
@@ -70,6 +72,6 @@ void TimeEvent_arm(TimeEvent *const me, uint32_t timeout, uint32_t interval);
 void TimeEvent_disarm(TimeEvent *const me);
 
 /* static method: call this function in each RTOS tick */
-void TimeEvent_tick(void);
+void TimeEvent_tickFromISR(BaseType_t *xHigherPriorityTaskWoken);
 
 #endif

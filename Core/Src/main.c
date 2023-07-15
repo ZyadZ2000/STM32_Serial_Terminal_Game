@@ -47,16 +47,12 @@ UART_HandleTypeDef huart1;
 static const Event e = { USER_IN_SIG };
 
 /* GAME AO*/
-static StaticQueue_t game_queue_obj;
-static StaticTask_t game_task_obj;
 static StackType_t game_stack[200];
 static Event *game_queue[20];
 static Game game;
 Active *AO_Game = &game.super;
 
 /* SCREENFRAME AO */
-static StaticQueue_t screen_frame_queue_obj;
-static StaticTask_t screen_frame_task_obj;
 static StackType_t screen_frame_stack[200];
 static Event *screen_frame_queue[20];
 static ScreenFrame screen_frame;
@@ -78,7 +74,8 @@ static void MX_USART1_UART_Init(void);
 /* Executed when the UART completes a receive */
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 	if (huart->Instance == USART1) {
-		Active_postFromISR(AO_Game, &e);
+		BaseType_t xHigherPriorityTaskWoken;
+		Active_postFromISR(AO_Game, &e, &xHigherPriorityTaskWoken);
 	}
 }
 
@@ -115,11 +112,13 @@ int main(void) {
 	/* USER CODE BEGIN 2 */
 	Game_ctor(&game, &huart1);
 	ScreenFrame_ctor(&screen_frame, &huart1);
-	Active_start(AO_Game, 1, game_queue, 20U, &game_queue_obj, game_stack, 200U,
-			&game_task_obj);
-	Active_start(AO_ScreenFrame, 2, screen_frame_queue, 20U,
-			&screen_frame_queue_obj, screen_frame_stack, 200U,
-			&screen_frame_task_obj);
+	Active_start(AO_Game, 1, game_queue,
+			sizeof(game_queue) / sizeof(game_queue[0]), game_stack,
+			sizeof(game_stack) / sizeof(game_stack[0]));
+	Active_start(AO_ScreenFrame, 2, screen_frame_queue,
+			sizeof(screen_frame_queue) / sizeof(game_queue[0]),
+			screen_frame_stack,
+			sizeof(screen_frame_stack) / sizeof(screen_frame_stack[0]));
 	/* USER CODE END 2 */
 
 	/* USER CODE BEGIN RTOS_MUTEX */

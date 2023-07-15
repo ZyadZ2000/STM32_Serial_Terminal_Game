@@ -26,11 +26,9 @@ void Fsm_dispatch(Fsm *const me, Event const *const e) {
 	}
 }
 
-
 void Active_ctor(Active *const me, StateHandler initial) {
 	Fsm_ctor(&me->super, initial);
 }
-
 
 static void Active_eventLoop(void *pdata) {
 	Active *me = (Active*) pdata; /* the AO instance "me" */
@@ -53,32 +51,28 @@ static void Active_eventLoop(void *pdata) {
 	}
 }
 
-
 void Active_start(Active *const me, uint8_t prio, Event **const queue_sto,
-		uint32_t queue_len, StaticQueue_t *const queue_buffer,
-		uint32_t *const stack_sto, uint32_t stack_size,
-		StaticTask_t *const task_buffer) {
+		uint32_t queue_len, uint32_t *const stack_sto, uint32_t stack_size) {
 
 	configASSERT(me && (0 < prio) && (prio < configMAX_PRIORITIES));
 	me->queue = xQueueCreateStatic(queue_len, sizeof(Event*),
-			(uint8_t* ) queue_sto, queue_buffer);
-	configASSERT(me->queue != NULL);
+			(uint8_t* ) queue_sto, &me->queue_cb);
+	configASSERT(me->queue);
 
 	me->thread = xTaskCreateStatic(&Active_eventLoop, NULL, stack_size,
-			(void*) me, prio, stack_sto, task_buffer);
-	configASSERT(me->thread != NULL);
+			(void*) me, prio, stack_sto, &me->thread_cb);
+	configASSERT(me->thread);
 }
-
 
 void Active_post(Active *const me, Event const *const e) {
-	xQueueSendToBack(me->queue, (void* ) &e, 0U);
+	BaseType_t state = xQueueSendToBack(me->queue, (void* ) &e, (TickType_t)0U);
+	configASSERT(state == pdTRUE);
 }
 
-void Active_postFromISR(Active *const me, Event const *const e) {
-	BaseType_t xHigherPriorityTaskWoken;
-	xQueueSendToBackFromISR(me->queue, (void* ) &e, &xHigherPriorityTaskWoken);
+void Active_postFromISR(Active *const me, Event const *const e,
+		BaseType_t *xHigherPriorityTaskWoken) {
+	xQueueSendToBackFromISR(me->queue, (void* ) &e, xHigherPriorityTaskWoken);
 }
-
 
 /* Time Event services... */
 
@@ -99,7 +93,6 @@ void TimeEvent_ctor(TimeEvent *const me, Signal sig, Active *act) {
 	taskEXIT_CRITICAL();
 }
 
-
 void TimeEvent_arm(TimeEvent *const me, uint32_t timeout, uint32_t interval) {
 	taskENTER_CRITICAL();
 	me->timeout = timeout;
@@ -107,21 +100,19 @@ void TimeEvent_arm(TimeEvent *const me, uint32_t timeout, uint32_t interval) {
 	taskEXIT_CRITICAL();
 }
 
-
 void TimeEvent_disarm(TimeEvent *const me) {
 	taskENTER_CRITICAL();
 	me->timeout = 0U;
 	taskEXIT_CRITICAL();
 }
 
-
-void TimeEvent_tick(void) {
+void TimeEvent_tickFromISR(BaseType_t *xHigherPriorityTaskWoken) {
 	uint_fast8_t i;
 	for (i = 0U; i < l_tevtNum; ++i) {
 		TimeEvent *const t = l_tevt[i];
 		if (t->timeout > 0U) { /* is this TimeEvent armed? */
 			if (--t->timeout == 0U) { /* is it expiring now? */
-				Active_postFromISR(t->act, &t->super);
+				Active_postFromISR(t->act, &t->super,xHigherPriorityTaskWoken);
 				t->timeout = t->interval; /* rearm or disarm (one-shot) */
 			}
 		}
@@ -129,7 +120,8 @@ void TimeEvent_tick(void) {
 }
 
 /* Enable the Tick Hook in FreeRTOSConfig to use time events*/
-void vApplicationTickHook( void ) {
-	TimeEvent_tick();
+void vApplicationTickHook(void) {
+	BaseType_t xHigherPriorityTaskWoken;
+	TimeEvent_tickFromISR(&xHigherPriorityTaskWoken);
 }
 

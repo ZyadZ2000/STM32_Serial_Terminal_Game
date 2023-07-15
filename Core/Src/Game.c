@@ -1,7 +1,8 @@
-#include "Game.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+
+#include "Game.h"
 
 extern Active *AO_ScreenFrame;
 
