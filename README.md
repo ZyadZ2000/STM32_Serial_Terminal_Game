@@ -23,6 +23,7 @@ The game is implemented using the Active Object design pattern on top of FreeRTO
 ### 1. Game:
 
 This active object encapsulates the attributes and logic of the game. This is a state diagram for the Game implemented in <a href="https://www.state-machine.com/products/qm">QM modeling tool</a>.
+
 <img style="display:block; width: 60%; margin-bottom: 10%;" src="https://github.com/ZyadZ2000/STM32_Serial_Terminal_Game/assets/85132955/8af5d41c-7187-4881-8cb3-7887963e6047" />
 
 ### 1. ScreenFrame:
