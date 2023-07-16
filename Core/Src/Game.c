@@ -19,6 +19,7 @@ static const char pwr_smbl_arr[NUM_PWR_SMBL] = { 'S', 'D' }; /* Array of power-u
 static ScreenFrameEvent se = { { SCREEN_FRAME_SIG } };
 
 /* constant events to post to the AO_Game */
+static const Event newlvl_e = { START_LVL_SIG };
 static const Event dir_e = { DIR_UPDATE_SIG };
 static const Event apple_e = { GEN_APPLE_SIG };
 static const Event enemy_e = { GEN_ENEMY_SIG };
@@ -32,7 +33,6 @@ static int8_t user_input; /* Hold the received user input from UART */
 static State Game_initial(Game *const me, Event const *const e);
 static State Game_welcome(Game *const me, Event const *const e);
 static State Game_startGame(Game *const me, Event const *const e);
-static State Game_startLevel(Game *const me, Event const *const e);
 static State Game_playing(Game *const me, Event const *const e);
 static State Game_gameover(Game *const me, Event const *const e);
 static State Game_moveSnake(Game *const me, uint8_t row_dir, uint8_t col_dir);
@@ -94,6 +94,8 @@ static State Game_startGame(Game *const me, Event const *const e) {
 		me->curr_score = 0;
 		me->elapsed_time = 0;
 		me->time_count = 0;
+		me->d_pwr_time_count = 0;
+		me->s_pwr_time_count = 0;
 		me->curr_dir = 0;
 		me->d_pwr_factor = 1;
 		me->is_s_pwr = false;
@@ -108,7 +110,7 @@ static State Game_startGame(Game *const me, Event const *const e) {
 			me->curr_dir = user_input;
 			TimeEvent_arm(&me->update_time_te, (uint32_t) TIMEOUT,
 					(uint32_t) TIMEOUT);
-			status = TRAN(&Game_startLevel);
+			status = TRAN(&Game_playing);
 		} else {
 			status = HANDLED_STATUS;
 		}
@@ -121,28 +123,18 @@ static State Game_startGame(Game *const me, Event const *const e) {
 	return status;
 }
 
-static State Game_startLevel(Game *const me, Event const *const e) {
+static State Game_playing(Game *const me, Event const *const e) {
 	State status;
 	switch (e->sig) {
 	case ENTRY_SIG:
+	case START_LVL_SIG:
 		if (me->curr_lvl > 1) {
 			taskENTER_CRITICAL();
 			Game_clearFrameSymbols();
 			taskEXIT_CRITICAL();
 		}
 		me->game_speed = game_speed_arr[me->curr_lvl - 1];
-		status = TRAN(&Game_playing);
 		break;
-	default:
-		status = IGNORED_STATUS;
-		break;
-	}
-	return status;
-}
-
-static State Game_playing(Game *const me, Event const *const e) {
-	State status;
-	switch (e->sig) {
 	case USER_IN_SIG:
 		if (user_input == 'r') {
 			status = TRAN(&Game_startGame);
@@ -241,12 +233,16 @@ static State Game_playing(Game *const me, Event const *const e) {
 		}
 		/* Update the level every 30 seconds */
 		if (me->time_count % (30 * TIMEUNIT_DIV) == 0U) {
-			if (me->curr_lvl == me->max_lvl) {
-				me->curr_lvl++;
+			me->curr_lvl++;
+			if (me->curr_lvl > me->max_lvl) {
 				status = TRAN(&Game_gameover);
 			} else {
-				me->curr_lvl++;
-				status = TRAN(&Game_startLevel);
+				me->d_pwr_factor = 1;
+				me->d_pwr_time_count = 0;
+				me->is_s_pwr = false;
+				me->s_pwr_time_count = 0;
+				Active_post(AO_Game, &newlvl_e);
+				status = HANDLED_STATUS;
 			}
 		} else {
 
@@ -282,15 +278,9 @@ static State Game_playing(Game *const me, Event const *const e) {
 			if ((me->time_count - me->s_pwr_time_count) == 0) {
 				Active_post(AO_Game, &s_to_e);
 			}
+
+			status = HANDLED_STATUS;
 		}
-		break;
-	}
-	case EXIT_SIG: {
-		me->d_pwr_factor = 1;
-		me->d_pwr_time_count = 0;
-		me->is_s_pwr = false;
-		me->s_pwr_time_count = 0;
-		status = HANDLED_STATUS;
 		break;
 	}
 	default: {
