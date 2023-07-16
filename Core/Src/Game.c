@@ -34,8 +34,7 @@ static State Game_welcome(Game *const me, Event const *const e);
 static State Game_startGame(Game *const me, Event const *const e);
 static State Game_startLevel(Game *const me, Event const *const e);
 static State Game_playing(Game *const me, Event const *const e);
-static State Game_win(Game *const me, Event const *const e);
-static State Game_lose(Game *const me, Event const *const e);
+static State Game_gameover(Game *const me, Event const *const e);
 static State Game_moveSnake(Game *const me, uint8_t row_dir, uint8_t col_dir);
 static uint32_t Game_randomGenerator(void);
 static void Game_clearFrameSymbols(void);
@@ -242,9 +241,10 @@ static State Game_playing(Game *const me, Event const *const e) {
 		}
 		/* Update the level every 30 seconds */
 		if (me->time_count % (30 * TIMEUNIT_DIV) == 0U) {
-			if (me->curr_lvl == me->max_lvl)
-				status = TRAN(&Game_win);
-			else {
+			if (me->curr_lvl == me->max_lvl) {
+				me->curr_lvl++;
+				status = TRAN(&Game_gameover);
+			} else {
 				me->curr_lvl++;
 				status = TRAN(&Game_startLevel);
 			}
@@ -301,47 +301,26 @@ static State Game_playing(Game *const me, Event const *const e) {
 	return status;
 }
 
-static State Game_win(Game *const me, Event const *const e) {
+static State Game_gameover(Game *const me, Event const *const e) {
 	State status;
-	static char win_frame[80];
+	static char gamover_frame[81];
 	switch (e->sig) {
 	case ENTRY_SIG: {
 		TimeEvent_disarm(&me->update_time_te);
 		if (me->curr_score >= me->highest_score)
 			me->highest_score = me->curr_score;
-		sprintf(win_frame,
-				"YOU WIN!!!\r\nSCORE: %lu\r\nHEIGHEST SCORE: %lu\r\npress 'r' to restart\r\n",
-				me->curr_score, me->highest_score);
-		se.frame = win_frame;
-		se.frame_len = strlen(win_frame);
-		Active_post(AO_ScreenFrame, (Event*) &se);
-		status = HANDLED_STATUS;
-		break;
-	}
-	case USER_IN_SIG: {
-		if (user_input == 'r') {
-			status = TRAN(&Game_startGame);
+		if (me->curr_lvl > me->max_lvl) {
+			sprintf(gamover_frame,
+					"YOU WIN!!!\r\nSCORE: %lu\r\nHEIGHEST SCORE: %lu\r\npress 'r' to restart\r\n",
+					me->curr_score, me->highest_score);
+
 		} else {
-			status = HANDLED_STATUS;
+			sprintf(gamover_frame,
+					"GAMEOVER!!!\r\nSCORE: %lu\r\nHEIGHEST SCORE: %lu\r\npress 'r' to restart\r\n",
+					me->curr_score, me->highest_score);
 		}
-		HAL_UART_Receive_IT(me->uart, (uint8_t*) &user_input, 1U);
-	}
-	}
-	return status;
-}
-static State Game_lose(Game *const me, Event const *const e) {
-	State status;
-	static char lose_frame[81];
-	switch (e->sig) {
-	case ENTRY_SIG: {
-		TimeEvent_disarm(&me->update_time_te);
-		if (me->curr_score >= me->highest_score)
-			me->highest_score = me->curr_score;
-		sprintf(lose_frame,
-				"GAMEOVER!!!\r\nSCORE: %lu\r\nHEIGHEST SCORE: %lu\r\npress 'r' to restart\r\n",
-				me->curr_score, me->highest_score);
-		se.frame = lose_frame;
-		se.frame_len = strlen(lose_frame);
+		se.frame = gamover_frame;
+		se.frame_len = strlen(gamover_frame);
 		Active_post(AO_ScreenFrame, (Event*) &se);
 		status = HANDLED_STATUS;
 		break;
@@ -449,7 +428,7 @@ static State Game_moveSnake(Game *const me, uint8_t row_dir, uint8_t col_dir) {
 	case '#':
 	case 'E':
 	case '*':
-		return TRAN(&Game_lose);
+		return TRAN(&Game_gameover);
 	case 'A':
 		me->curr_score += 1 * me->d_pwr_factor;
 		char buffer[6];
