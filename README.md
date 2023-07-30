@@ -33,11 +33,6 @@ This active object is responsible for sending the displayed frame to the serial 
 <img style="display:block; width: 60%; margin-bottom: 10%;" src="https://github.com/ZyadZ2000/STM32_Serial_Terminal_Game/assets/85132955/775d8e2e-c6cd-4b1f-b7be-9230d5a71e20" />
 
 # Screenshots:
-
-## Note:
-
-These screenshots are based on the previous implementation of the game (which didn't use the Active Objects Pattern), I didn't get the chance to test the new implementation on actual hardware yet due to the current inavailability of the hardware.
-
 <img style="display:block; width: 60%; margin-bottom: 10%;" src="https://user-images.githubusercontent.com/85132955/216424584-bba9aedf-a07e-45ad-95f3-025ec6ee38a3.png" />
 
 <img style="display:block; width: 60%;  margin-bottom: 10%;" src="https://user-images.githubusercontent.com/85132955/216424728-0e49ccdd-67a4-4db6-9e09-8397a844478e.png" />
