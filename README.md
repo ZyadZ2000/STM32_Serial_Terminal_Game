@@ -3,10 +3,10 @@
 A simple variation of the famous snake game implemented in the serial terminal using stm32f446re, and FreeRTOS.
 
 The game is very simple, the snake is represented as '&**\***' where the head is '&', and the body is '\*'. The snake moves in the direction of the head, and the user can change the direction of the snake using the following keys:
-1: left
-2: down
-3: right
-5: up
+<br>1: left
+<br>2: down
+<br>3: right
+<br>5: up
 
 The snake dies if it hits the wall, eats and enemy 'E', or if it hits itself. The user is first presented with a welcome message, and can start the game by pressing 's'. The user can reset the game by pressing 'r'.
 
