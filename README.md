@@ -16,7 +16,7 @@ max level: 5
 
 # Implementation details
 
-The game is implemented using the Active Object design pattern on top of FreeRTOS. This pattern is used to eliminate the most of the blocking typically found in traditional RTOS tasks. Credit to <a href="https://www.youtube.com/@StateMachineCOM">Dr. Miro Samek</a> for the idea and explanation.
+The game is implemented using the Active Object design pattern on top of FreeRTOS. This pattern is used to eliminate most of the blocking typically found in traditional RTOS tasks. Credit to <a href="https://www.youtube.com/@StateMachineCOM">Dr. Miro Samek</a> for the idea and explanation.
 
 ## There are two main Active Objects:
 
